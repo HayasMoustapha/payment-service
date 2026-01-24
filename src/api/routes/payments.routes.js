@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const paymentsController = require('../controllers/payments.controller');
-const { authenticate, requireStripeWebhook, requirePayPalWebhook, requireAPIKey } = require("../../../../shared");
-// const { // requirePermission } = require("../../../../shared");
+const { authenticate, requireStripeWebhook, requirePayPalWebhook, requireAPIKey, requirePermission } = require("../../../../shared");
 const logger = require('../../utils/logger');
 
 /**
@@ -10,12 +9,12 @@ const logger = require('../../utils/logger');
  */
 
 // Middleware d'authentification pour la plupart des routes
-// // router.use(authenticate);
+router.use(authenticate);
 
 // Routes Stripe
 // POST /api/payments/stripe/payment-intent - Créer un Payment Intent
 router.post('/stripe/payment-intent',
-  // requirePermission('payments.stripe.create'),
+  requirePermission('payments.stripe.create'),
   paymentsController.createStripePaymentIntent
 );
 
