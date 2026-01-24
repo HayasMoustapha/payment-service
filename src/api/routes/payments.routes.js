@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const paymentsController = require('../controllers/payments.controller');
-const { authenticate, requireStripeWebhook, requirePayPalWebhook, requireAPIKey } = require('../../middleware/auth');
-const { requirePermission } = require('../../middleware/rbac');
+const { authenticate, requireStripeWebhook, requirePayPalWebhook, requireAPIKey } = require('../../../shared');
+const { requirePermission } = require('../../../shared');
 const logger = require('../../utils/logger');
 
 /**
