@@ -1,10 +1,6 @@
 -- Payment Service Database Schema
 -- Based on payment-diagram.md
 
--- Create database if not exists
-CREATE DATABASE IF NOT EXISTS event_planner_payments;
-\c event_planner_payments;
-
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
