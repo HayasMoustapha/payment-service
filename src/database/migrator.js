@@ -9,7 +9,7 @@ const logger = require('../utils/logger');
  */
 class DatabaseMigrator {
   constructor() {
-    this.migrationsPath = path.join(__dirname, '../database/migrations');
+    this.migrationsPath = path.join(__dirname, './migrations');
   }
 
   /**

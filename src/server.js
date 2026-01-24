@@ -12,7 +12,7 @@ const rawBody = require('raw-body');
 const logger = require('./utils/logger');
 const healthRoutes = require('./health/health.routes');
 const paymentsRoutes = require('./api/routes/payments.routes');
-const migrator = require('./database/migrator');
+const bootstrap = require("./bootstrap");
 
 /**
  * Serveur principal du Payment Service
@@ -320,16 +320,9 @@ class PaymentServer {
    */
   async start() {
     try {
-      // Run database migrations first
-      logger.info('🔄 Running database migrations...');
-      const migrationResult = await migrator.migrate();
+      // Bootstrap automatique (crée la BD et applique les migrations)
+      await bootstrap.initialize();
       
-      if (migrationResult.executed > 0) {
-        logger.info(`✅ Successfully executed ${migrationResult.executed} migrations`);
-      } else {
-        logger.info('✅ Database is up to date');
-      }
-
       logger.info('🚀 Starting Payment Service server...');
       
       this.server = this.app.listen(this.port, () => {
