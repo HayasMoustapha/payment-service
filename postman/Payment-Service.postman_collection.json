@@ -147,7 +147,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"amount\": 9999,\n  \"currency\": \"usd\",\n  \"customerEmail\": \"{{testEmail}}\",\n  \"description\": \"Event ticket purchase\",\n  \"metadata\": {\n    \"eventId\": \"{{testEventId}}\",\n    \"userId\": \"{{testUserId}}\"\n  }\n}"
+							"raw": "{\n  \"userId\": \"{{testUserId}}\",\n  \"eventId\": \"{{testEventId}}\",\n  \"amount\": 9999,\n  \"currency\": \"EUR\",\n  \"paymentMethod\": \"stripe\",\n  \"customerEmail\": \"{{testEmail}}\",\n  \"description\": \"Event ticket purchase\",\n  \"metadata\": {\n    \"ticketType\": \"VIP\"\n  }\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/payments/stripe/payment-intent",
@@ -173,7 +173,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"amount\": 9999,\n  \"currency\": \"usd\",\n  \"successUrl\": \"{{frontendUrl}}/payment/success\",\n  \"cancelUrl\": \"{{frontendUrl}}/payment/cancel\",\n  \"customerEmail\": \"{{testEmail}}\",\n  \"description\": \"Event ticket purchase\"\n}"
+							"raw": "{\n  \"userId\": \"{{testUserId}}\",\n  \"eventId\": \"{{testEventId}}\",\n  \"amount\": 9999,\n  \"currency\": \"EUR\",\n  \"paymentMethod\": \"stripe\",\n  \"successUrl\": \"{{frontendUrl}}/payment/success\",\n  \"cancelUrl\": \"{{frontendUrl}}/payment/cancel\",\n  \"customerEmail\": \"{{testEmail}}\",\n  \"description\": \"Event ticket purchase\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/payments/stripe/checkout-session",
@@ -336,7 +336,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"amount\": {\n    \"currency_code\": \"USD\",\n    \"value\": \"99.99\"\n  },\n  \"description\": \"Event ticket purchase\",\n  \"returnUrl\": \"{{frontendUrl}}/payment/success\",\n  \"cancelUrl\": \"{{frontendUrl}}/payment/cancel\"\n}"
+							"raw": "{\n  \"userId\": \"{{testUserId}}\",\n  \"eventId\": \"{{testEventId}}\",\n  \"amount\": 9999,\n  \"currency\": \"EUR\",\n  \"paymentMethod\": \"paypal\",\n  \"description\": \"Event ticket purchase\",\n  \"returnUrl\": \"{{frontendUrl}}/payment/success\",\n  \"cancelUrl\": \"{{frontendUrl}}/payment/cancel\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/payments/paypal/orders",
