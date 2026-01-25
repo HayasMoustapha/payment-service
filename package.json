@@ -12,7 +12,12 @@
     "test": "NODE_ENV=test jest",
     "test:watch": "NODE_ENV=test jest --watch",
     "test:coverage": "NODE_ENV=test jest --coverage",
-    "test:ci": "NODE_ENV=test jest --ci --coverage --watchAll=false"
+    "test:ci": "NODE_ENV=test jest --ci --coverage --watchAll=false",
+    "test:unit": "NODE_ENV=test jest tests/unit",
+    "test:integration": "NODE_ENV=test jest tests/integration",
+    "test:payment": "NODE_ENV=test node tests/unit/payment.service.test.js",
+    "test:wallet": "NODE_ENV=test node tests/unit/wallet.service.test.js",
+    "test:full-flow": "NODE_ENV=test node tests/integration/full-flow.test.js"
   },
   "keywords": [
     "event-planner",
@@ -58,5 +63,24 @@
     "jest": "^30.2.0",
     "nodemon": "^3.0.2",
     "supertest": "^7.2.2"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/server.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": [
+      "text",
+      "lcov",
+      "html"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/tests/setup.js"
+    ]
   }
 }
