@@ -12,6 +12,12 @@ const rawBody = require('raw-body');
 const logger = require('./utils/logger');
 const healthRoutes = require('./health/health.routes');
 const paymentsRoutes = require('./api/routes/payments.routes');
+const stripeRoutes = require('./api/routes/stripe.routes');
+const paypalRoutes = require('./api/routes/paypal.routes');
+const refundsRoutes = require('./api/routes/refunds.routes');
+const invoicesRoutes = require('./api/routes/invoices.routes');
+const paymentMethodsRoutes = require('./api/routes/payment-methods.routes');
+const healthApiRoutes = require('./api/routes/health.routes');
 const bootstrap = require("./bootstrap");
 
 /**
@@ -164,8 +170,16 @@ class PaymentServer {
     // Routes de santé
     this.app.use('/health', healthRoutes);
 
-    // Routes API
+    // Routes API principales
     this.app.use('/api/payments', paymentsRoutes);
+    
+    // Nouvelles routes structurées selon Postman
+    this.app.use('/api/payments/stripe', stripeRoutes);
+    this.app.use('/api/payments/paypal', paypalRoutes);
+    this.app.use('/api/payments/refunds', refundsRoutes);
+    this.app.use('/api/payments/invoices', invoicesRoutes);
+    this.app.use('/api/payments/payment-methods', paymentMethodsRoutes);
+    this.app.use('/health', healthApiRoutes);
 
     // Route API racine
     this.app.get('/api', (req, res) => {
