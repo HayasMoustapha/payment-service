@@ -5,7 +5,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const { ipKeyGenerator } = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const morgan = require('morgan');
 const rawBody = require('raw-body');
@@ -107,10 +106,6 @@ class PaymentServer {
         error: {
           code: 'PAYMENT_RATE_LIMIT_EXCEEDED'
         }
-      },
-      keyGenerator: (req) => {
-        // Utiliser l'ID utilisateur si authentifié, sinon l'IP avec gestion IPv6 sécurisée
-        return req.user?.id || ipKeyGenerator(req);
       }
     });
     this.app.use('/api/payments/stripe/payment-intent', paymentLimiter);
@@ -127,10 +122,6 @@ class PaymentServer {
         error: {
           code: 'REFUND_RATE_LIMIT_EXCEEDED'
         }
-      },
-      keyGenerator: (req) => {
-        // Utiliser l'ID utilisateur si authentifié, sinon l'IP avec gestion IPv6 sécurisée
-        return req.user?.id || ipKeyGenerator(req);
       }
     });
     this.app.use('/api/payments/refunds', refundLimiter);
@@ -253,7 +244,7 @@ class PaymentServer {
     }
 
     // Route 404
-    this.app.use('*', (req, res) => {
+    this.app.use((req, res) => {
       res.status(404).json({
         success: false,
         message: 'Route non trouvée',
