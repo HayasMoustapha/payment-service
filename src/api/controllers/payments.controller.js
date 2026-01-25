@@ -1,44 +1,58 @@
-const stripeService = require('../../core/stripe/stripe.service');
-const paypalService = require('../../core/paypal/paypal.service');
-const invoiceService = require('../../core/invoices/invoice.service');
-const refundService = require('../../core/refunds/refund.service');
+const paymentService = require('../../core/payments/payment.service');
 const { 
   successResponse, 
   createdResponse, 
   paymentResponse,
-  refundResponse,
-  invoiceResponse,
   notFoundResponse,
   errorResponse,
-  paymentErrorResponse,
-  providerErrorResponse
+  paymentErrorResponse
 } = require('../../utils/response');
 const logger = require('../../utils/logger');
 
 /**
  * Contrôleur pour les paiements
- * Gère les paiements Stripe et PayPal avec facturation et remboursements
+ * Gère les paiements multi-providers avec abstraction
  */
 class PaymentsController {
   /**
-   * Crée un Payment Intent Stripe
+   * Process a payment transaction
    */
-  async createStripePaymentIntent(req, res) {
+  async processPayment(req, res) {
     try {
-      const { amount, customerId, eventId, ticketIds, metadata = {} } = req.body;
-      
-      logger.payment('Creating Stripe Payment Intent', {
+      const {
         amount,
+        currency = 'EUR',
+        paymentMethod,
+        description,
+        customerEmail,
+        customerName,
+        customerPhone,
         eventId,
-        ticketIds,
+        returnUrl,
+        preferredGateways = [],
+        metadata = {}
+      } = req.body;
+      
+      logger.payment('Processing payment', {
+        amount,
+        currency,
+        paymentMethod,
+        eventId,
         userId: req.user?.id
       });
 
-      const result = await stripeService.createPaymentIntent({
-        amount,
-        customerId,
+      const result = await paymentService.processPayment({
+        userId: req.user?.id,
         eventId,
-        ticketIds,
+        amount,
+        currency,
+        paymentMethod,
+        description,
+        customerEmail,
+        customerName,
+        customerPhone,
+        returnUrl,
+        preferredGateways,
         metadata: {
           ...metadata,
           userId: req.user?.id
@@ -47,7 +61,288 @@ class PaymentsController {
 
       if (!result.success) {
         return res.status(400).json(
-          paymentErrorResponse(result.error, result.type)
+          paymentErrorResponse(result.error, 'PAYMENT_FAILED')
+        );
+      }
+
+      return res.status(201).json(
+        createdResponse('Payment initiated successfully', result)
+      );
+
+    } catch (error) {
+      logger.error('Payment processing failed', {
+        error: error.message,
+        userId: req.user?.id
+      });
+      
+      return res.status(500).json(
+        errorResponse('Payment processing failed', error.message)
+      );
+    }
+  }
+
+  /**
+   * Process template purchase payment
+   */
+  async purchaseTemplate(req, res) {
+    try {
+      const {
+        templateId,
+        designerId,
+        amount,
+        currency = 'EUR',
+        paymentMethod,
+        customerEmail,
+        customerName,
+        customerPhone,
+        returnUrl,
+        preferredGateways = [],
+        metadata = {}
+      } = req.body;
+      
+      logger.payment('Processing template purchase', {
+        templateId,
+        designerId,
+        amount,
+        currency,
+        userId: req.user?.id
+      });
+
+      const result = await paymentService.processTemplatePurchase({
+        userId: req.user?.id,
+        templateId,
+        designerId,
+        amount,
+        currency,
+        paymentMethod,
+        customerEmail,
+        customerName,
+        customerPhone,
+        returnUrl,
+        preferredGateways,
+        metadata: {
+          ...metadata,
+          userId: req.user?.id
+        }
+      });
+
+      if (!result.success) {
+        return res.status(400).json(
+          paymentErrorResponse(result.error, 'TEMPLATE_PURCHASE_FAILED')
+        );
+      }
+
+      return res.status(201).json(
+        createdResponse('Template purchase initiated successfully', result)
+      );
+
+    } catch (error) {
+      logger.error('Template purchase failed', {
+        error: error.message,
+        userId: req.user?.id
+      });
+      
+      return res.status(500).json(
+        errorResponse('Template purchase failed', error.message)
+      );
+    }
+  }
+
+  /**
+   * Handle webhook from payment providers
+   */
+  async handleWebhook(req, res) {
+    try {
+      const { gateway } = req.params;
+      const signature = req.headers['stripe-signature'] || 
+                        req.headers['paypal-transmission-sig'] || 
+                        req.headers['x-cinetpay-signature'] ||
+                        req.headers['authorization'];
+
+      const webhookData = {
+        payload: JSON.stringify(req.body),
+        signature,
+        secret: process.env[`${gateway.toUpperCase()}_WEBHOOK_SECRET`]
+      };
+
+      logger.payment('Processing webhook', {
+        gateway,
+        eventType: req.body.type || 'unknown'
+      });
+
+      const result = await paymentService.processWebhook(gateway, webhookData);
+
+      if (!result.success) {
+        return res.status(400).json(
+          errorResponse('Webhook processing failed', result.error)
+        );
+      }
+
+      return res.status(200).json(
+        successResponse('Webhook processed successfully', result)
+      );
+
+    } catch (error) {
+      logger.error('Webhook processing failed', {
+        error: error.message,
+        gateway: req.params.gateway
+      });
+      
+      return res.status(500).json(
+        errorResponse('Webhook processing failed', error.message)
+      );
+    }
+  }
+
+  /**
+   * Get payment status
+   */
+  async getPaymentStatus(req, res) {
+    try {
+      const { transactionId } = req.params;
+      
+      logger.payment('Getting payment status', {
+        transactionId,
+        userId: req.user?.id
+      });
+
+      // This would need to be implemented in payment service
+      // For now, return a placeholder response
+      return res.status(200).json(
+        successResponse('Payment status retrieved', {
+          transactionId,
+          status: 'pending',
+          message: 'Status retrieval not yet implemented'
+        })
+      );
+
+    } catch (error) {
+      logger.error('Payment status retrieval failed', {
+        error: error.message,
+        transactionId: req.params.transactionId
+      });
+      
+      return res.status(500).json(
+        errorResponse('Payment status retrieval failed', error.message)
+      );
+    }
+  }
+
+  /**
+   * Get payment statistics
+   */
+  async getPaymentStatistics(req, res) {
+    try {
+      const { startDate, endDate, status } = req.query;
+      
+      logger.payment('Getting payment statistics', {
+        userId: req.user?.id,
+        startDate,
+        endDate,
+        status
+      });
+
+      const filters = {
+        userId: req.user?.id,
+        startDate,
+        endDate,
+        status
+      };
+
+      const statistics = await paymentService.getStatistics(filters);
+
+      return res.status(200).json(
+        successResponse('Payment statistics retrieved', statistics)
+      );
+
+    } catch (error) {
+      logger.error('Payment statistics retrieval failed', {
+        error: error.message,
+        userId: req.user?.id
+      });
+      
+      return res.status(500).json(
+        errorResponse('Payment statistics retrieval failed', error.message)
+      );
+    }
+  }
+
+  /**
+   * Get available payment gateways
+   */
+  async getAvailableGateways(req, res) {
+    try {
+      const { amount, currency = 'EUR', country = 'FR' } = req.query;
+      
+      logger.payment('Getting available gateways', {
+        amount,
+        currency,
+        country
+      });
+
+      // This would need to be implemented in gateway manager
+      // For now, return placeholder response
+      const gateways = [
+        {
+          code: 'stripe',
+          name: 'Stripe',
+          active: true,
+          currencies: ['EUR', 'USD', 'GBP'],
+          countries: ['FR', 'US', 'GB', 'DE', 'ES', 'IT'],
+          minAmount: 0.50,
+          maxAmount: 100000.00
+        },
+        {
+          code: 'cinetpay',
+          name: 'CinetPay',
+          active: true,
+          currencies: ['XOF', 'XAF', 'EUR', 'USD'],
+          countries: ['CI', 'SN', 'ML', 'BF', 'NE', 'TG', 'BJ'],
+          minAmount: 100.00,
+          maxAmount: 1000000.00
+        },
+        {
+          code: 'mtn_momo',
+          name: 'MTN Mobile Money',
+          active: true,
+          currencies: ['XOF', 'XAF', 'UGX', 'GHS'],
+          countries: ['CI', 'CM', 'UG', 'GH', 'ZM', 'MW'],
+          minAmount: 100.00,
+          maxAmount: 500000.00
+        }
+      ];
+
+      // Filter gateways based on criteria
+      const suitableGateways = gateways.filter(gateway => {
+        if (amount && (parseFloat(amount) < gateway.minAmount || parseFloat(amount) > gateway.maxAmount)) {
+          return false;
+        }
+        if (currency && !gateway.currencies.includes(currency)) {
+          return false;
+        }
+        if (country && !gateway.countries.includes(country)) {
+          return false;
+        }
+        return gateway.active;
+      });
+
+      return res.status(200).json(
+        successResponse('Available gateways retrieved', {
+          gateways: suitableGateways,
+          criteria: { amount, currency, country }
+        })
+      );
+
+    } catch (error) {
+      logger.error('Available gateways retrieval failed', {
+        error: error.message
+      });
+      
+      return res.status(500).json(
+        errorResponse('Available gateways retrieval failed', error.message)
+      );
+    }
+  }
         );
       }
 
@@ -110,8 +405,8 @@ class PaymentsController {
       return res.status(201).json(
         paymentResponse({
           id: result.session.id,
-          status: result.session.paymentStatus,
-          amount: result.session.amount,
+          status: result.session.payment_status,
+          amount: result.session.amount_total,
           currency: result.session.currency,
           provider: 'stripe',
           createdAt: new Date().toISOString(),
@@ -166,10 +461,10 @@ class PaymentsController {
         paymentResponse({
           id: result.order.id,
           status: result.order.status,
-          amount: result.order.purchaseUnits[0].amount.value,
-          currency: result.order.purchaseUnits[0].amount.currency_code,
+          amount: result.order.purchase_units[0].amount.value,
+          currency: result.order.purchase_units[0].amount.currency_code,
           provider: 'paypal',
-          createdAt: result.order.createTime,
+          createdAt: result.order.create_time,
           redirectUrl: result.order.links.find(link => link.rel === 'approve')?.href
         })
       );
@@ -209,10 +504,10 @@ class PaymentsController {
         paymentResponse({
           id: result.capture.id,
           status: result.capture.status,
-          amount: result.capture.purchaseUnits[0].payments.captures[0].amount.value,
-          currency: result.capture.purchaseUnits[0].payments.captures[0].amount.currency_code,
+          amount: result.capture.purchase_units[0].payments.captures[0].amount.value,
+          currency: result.capture.purchase_units[0].payments.captures[0].amount.currency_code,
           provider: 'paypal',
-          createdAt: result.capture.createTime
+          createdAt: result.capture.create_time
         })
       );
     } catch (error) {
@@ -269,11 +564,11 @@ class PaymentsController {
         successResponse('Détails du paiement récupérés', {
           id: paymentData.id,
           status: paymentData.status,
-          amount: provider === 'stripe' ? paymentData.amount : paymentData.purchaseUnits[0].amount.value,
-          currency: provider === 'stripe' ? paymentData.currency : paymentData.purchaseUnits[0].amount.currency_code,
+          amount: provider === 'stripe' ? paymentData.amount : paymentData.purchase_units[0].amount.value,
+          currency: provider === 'stripe' ? paymentData.currency : paymentData.purchase_units[0].amount.currency_code,
           provider,
           metadata: paymentData.metadata,
-          createdAt: provider === 'stripe' ? paymentData.created : paymentData.createTime
+          createdAt: provider === 'stripe' ? paymentData.created : paymentData.create_time
         })
       );
     } catch (error) {
