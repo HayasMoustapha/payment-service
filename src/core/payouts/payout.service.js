@@ -193,7 +193,15 @@ class PayoutService {
       const withdrawalResult = await database.query(withdrawalQuery, [withdrawalId]);
       
       if (withdrawalResult.rows.length === 0) {
-        throw new Error('Withdrawal not found');
+        return {
+          success: false,
+          error: 'Withdrawal not found',
+          details: {
+            field: 'withdrawalId',
+            message: 'Withdrawal not found',
+            withdrawalId
+          }
+        };
       }
 
       const withdrawal = withdrawalResult.rows[0];
@@ -209,7 +217,15 @@ class PayoutService {
       const gateway = this.selectPayoutGateway(payoutMethod, details);
       if (!gateway) {
         await this.updateWithdrawalStatus(withdrawalId, 'failed', 'No suitable gateway available');
-        throw new Error('No suitable gateway available');
+        return {
+          success: false,
+          error: 'No suitable gateway available',
+          details: {
+            field: 'gateway',
+            message: 'No suitable gateway available for this payout method',
+            payoutMethod
+          }
+        };
       }
 
       // Prepare payout data
@@ -239,7 +255,15 @@ class PayoutService {
         // Refund wallet if payout failed
         await this.refundFailedPayout(withdrawal, gatewayResult.error);
         
-        throw new Error(`Payout failed: ${gatewayResult.error}`);
+        return {
+          success: false,
+          error: 'Payout processing failed',
+          details: {
+            message: gatewayResult.error,
+            withdrawalId,
+            gateway: gatewayResult.gateway
+          }
+        };
       }
 
       // Update withdrawal with provider details
