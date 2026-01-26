@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const stripeController = require('../controllers/stripe.controller');
 const { authenticate, requirePermission } = require('../../../../shared');
+const { injectUserContext } = require('../../../../shared/context-middleware');
 const { validate } = require('../../middleware/validation');
 const Joi = require('joi');
 

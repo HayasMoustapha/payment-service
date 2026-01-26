@@ -2,17 +2,18 @@ const express = require('express');
 const router = express.Router();
 const paymentsController = require('../controllers/payments.controller');
 const { authenticate, requirePermission } = require('../../../../shared');
+const { injectUserContext } = require('../../../../shared/context-middleware');
 
 // Apply authentication to main payment routes
 router.use(authenticate);
 
 // Legacy routes (maintained for backward compatibility)
-router.post('/process', requirePermission('payments.create'), paymentsController.processPayment);
-router.post('/templates/purchase', requirePermission('payments.create'), paymentsController.purchaseTemplate);
+router.post('/process', authenticate, injectUserContext, requirePermission('payments.create'), paymentsController.processPayment);
+router.post('/templates/purchase', authenticate, injectUserContext, requirePermission('payments.create'), paymentsController.purchaseTemplate);
 router.post('/webhooks/:gateway', paymentsController.handleWebhook);
-router.get('/status/:transactionId', requirePermission('payments.read'), paymentsController.getPaymentStatus);
-router.get('/statistics', requirePermission('payments.read'), paymentsController.getPaymentStatistics);
-router.get('/gateways', requirePermission('payments.read'), paymentsController.getAvailableGateways);
+router.get('/status/:transactionId', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getPaymentStatus);
+router.get('/statistics', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getPaymentStatistics);
+router.get('/gateways', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getAvailableGateways);
 
 // Service Info routes
 router.get('/', (req, res) => {

@@ -11,11 +11,15 @@ const validate = (schema, source = 'body') => {
                    source === 'query' ? req.query : 
                    source === 'params' ? req.params : req.body;
 
-      const { error, value } = schema.validate(data, {
+      // Permettre les champs injectés par le contexte
+      const options = {
         abortEarly: false,
-        stripUnknown: true,
-        convert: true
-      });
+        stripUnknown: false, // Ne pas supprimer les champs injectés
+        convert: true,
+        allowUnknown: true // Permettre les champs injectés par le contexte
+      };
+
+      const { error, value } = schema.validate(data, options);
 
       if (error) {
         const errors = error.details.map(detail => ({
@@ -40,13 +44,13 @@ const validate = (schema, source = 'body') => {
         });
       }
 
-      // Replace the source data with validated and cleaned data
+      // Fusionner les données validées avec les données existantes
       if (source === 'body') {
-        req.body = value;
+        req.body = { ...req.body, ...value };
       } else if (source === 'query') {
-        req.query = value;
+        req.query = { ...req.query, ...value };
       } else if (source === 'params') {
-        req.params = value;
+        req.params = { ...req.params, ...value };
       }
 
       next();
