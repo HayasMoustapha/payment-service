@@ -544,22 +544,48 @@ class PaymentService {
   /**
    * Validate payment data
    * @param {Object} paymentData - Payment data
-   * @throws {Error} If validation fails
+   * @returns {Object} Validation result
    */
   validatePaymentData(paymentData) {
     const { userId, amount, currency } = paymentData;
 
     if (!userId) {
-      throw new Error('User ID is required');
+      return {
+        success: false,
+        error: 'User ID is required',
+        details: {
+          field: 'userId',
+          message: 'User ID is required'
+        }
+      };
     }
 
     if (!amount || amount <= 0) {
-      throw new Error('Amount must be greater than 0');
+      return {
+        success: false,
+        error: 'Amount must be greater than 0',
+        details: {
+          field: 'amount',
+          message: 'Amount must be greater than 0'
+        }
+      };
     }
 
     if (!currency || currency.length !== 3) {
-      throw new Error('Valid currency code is required');
+      return {
+        success: false,
+        error: 'Valid currency code is required',
+        details: {
+          field: 'currency',
+          message: 'Valid currency code is required (3 characters)'
+        }
+      };
     }
+
+    return {
+      success: true,
+      message: 'Payment data validation successful'
+    };
   }
 
   /**
