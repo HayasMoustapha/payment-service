@@ -41,12 +41,7 @@ router.get('/stripe/:refundId',
   ValidationMiddleware.validateParams({
     refundId: Joi.string().required()
   }),
-  refundsController.getStripeRefund
-);
-
-router.get('/stripe', 
-  SecurityMiddleware.withPermissions('refunds.read'),
-  refundsController.listStripeRefunds
+  refundsController.getRefundStatus
 );
 
 // PayPal refunds
@@ -54,19 +49,6 @@ router.post('/paypal',
   SecurityMiddleware.withPermissions('refunds.create'),
   ValidationMiddleware.validate({ body: createPayPalRefundSchema }),
   refundsController.createPayPalRefund
-);
-
-router.get('/paypal/:refundId', 
-  SecurityMiddleware.withPermissions('refunds.read'),
-  ValidationMiddleware.validateParams({
-    refundId: Joi.string().required()
-  }),
-  refundsController.getPayPalRefund
-);
-
-router.get('/paypal', 
-  SecurityMiddleware.withPermissions('refunds.read'),
-  refundsController.listPayPalRefunds
 );
 
 // Generic refund status
@@ -78,14 +60,15 @@ router.get('/status/:refundId',
   refundsController.getRefundStatus
 );
 
-// Refund statistics
-router.get('/statistics', 
+// List refunds
+router.get('/', 
   SecurityMiddleware.withPermissions('refunds.read'),
   ValidationMiddleware.validateQuery({
-    period: Joi.string().valid('day', 'week', 'month', 'year').default('month'),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20),
     gateway: Joi.string().valid('stripe', 'paypal').optional()
   }),
-  refundsController.getRefundStatistics
+  refundsController.listRefunds
 );
 
 module.exports = router;

@@ -60,31 +60,4 @@ router.delete('/:methodId',
   paymentMethodsController.deletePaymentMethod
 );
 
-// Set default payment method
-router.post('/:methodId/default', 
-  SecurityMiddleware.withPermissions('payment-methods.update'),
-  ValidationMiddleware.validateParams({
-    methodId: Joi.string().required()
-  }),
-  paymentMethodsController.setDefaultPaymentMethod
-);
-
-// Get available payment methods
-router.get('/available', 
-  SecurityMiddleware.withPermissions('payment-methods.read'),
-  paymentMethodsController.getAvailablePaymentMethods
-);
-
-// Validate payment method
-router.post('/validate', 
-  ValidationMiddleware.validate({
-    body: Joi.object({
-      type: Joi.string().required(),
-      token: Joi.string().required(),
-      provider: Joi.string().required()
-    })
-  }),
-  paymentMethodsController.validatePaymentMethod
-);
-
 module.exports = router;

@@ -21,18 +21,7 @@ const generateInvoicePdfSchema = Joi.object({
   includeTax: Joi.boolean().default(true)
 });
 
-// Wallet Management
-router.get('/balance', 
-  SecurityMiddleware.withPermissions('wallets.read'),
-  walletsController.getWalletBalance
-);
-
-router.get('/transactions', 
-  SecurityMiddleware.withPermissions('wallets.read'),
-  walletsController.getWalletTransactions
-);
-
-// Generate Invoice PDF
+// Invoice Management
 router.post('/generate',
   SecurityMiddleware.withPermissions('invoices.create'),
   ValidationMiddleware.validate({ body: generateInvoicePdfSchema }),

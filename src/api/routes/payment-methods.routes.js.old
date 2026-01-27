@@ -1,36 +1,26 @@
 const express = require('express');
+const Joi = require('joi');
 const router = express.Router();
 const paymentMethodsController = require('../controllers/payment-methods.controller');
-const { authenticate, requirePermission } = require('../../../../shared');
-const { validate } = require('../../middleware/validation');
-const Joi = require('joi');
+const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../shared');
+const paymentErrorHandler = require('../../error/payment.errorHandler');
+
+// Apply authentication to all routes
+router.use(SecurityMiddleware.authenticated());
+
+// Apply context injection for all authenticated routes
+router.use(ContextInjector.injectUserContext());
+
+// Apply error handler for all routes
+router.use(paymentErrorHandler);
 
 // Validation schemas
 const addPaymentMethodSchema = Joi.object({
-  type: Joi.string().valid('card', 'sepa_debit', 'ideal').required(),
-  card: Joi.object({
-    number: Joi.string().required(),
-    exp_month: Joi.number().integer().min(1).max(12).required(),
-    exp_year: Joi.number().integer().min(2024).required(),
-    cvc: Joi.string().required()
-  }).when('type', {
-    is: 'card',
-    then: Joi.required(),
-    otherwise: Joi.optional()
-  }),
-  billing_details: Joi.object({
-    name: Joi.string().required(),
-    email: Joi.string().email().required(),
-    phone: Joi.string().optional(),
-    address: Joi.object({
-      line1: Joi.string().required(),
-      city: Joi.string().required(),
-      state: Joi.string().optional(),
-      postal_code: Joi.string().required(),
-      country: Joi.string().required()
-    }).optional()
-  }).required(),
-  isDefault: Joi.boolean().default(false)
+  type: Joi.string().valid('card', 'bank_account', 'paypal', 'stripe').required(),
+  provider: Joi.string().valid('stripe', 'paypal', 'cinetpay').required(),
+  token: Joi.string().required(),
+  isDefault: Joi.boolean().default(false),
+  metadata: Joi.object().optional()
 });
 
 const updatePaymentMethodSchema = Joi.object({
@@ -38,33 +28,63 @@ const updatePaymentMethodSchema = Joi.object({
   metadata: Joi.object().optional()
 });
 
-// Apply authentication to all routes
-router.use(authenticate);
-
-// Add Payment Method
-router.post('/',
-  requirePermission('payment-methods.create'),
-  validate(addPaymentMethodSchema),
-  paymentMethodsController.addPaymentMethod
-);
-
-// Get User Payment Methods
-router.get('/',
-  requirePermission('payment-methods.read'),
+// Get user payment methods
+router.get('/', 
+  SecurityMiddleware.withPermissions('payment-methods.read'),
   paymentMethodsController.getUserPaymentMethods
 );
 
-// Update Payment Method
-router.put('/:paymentMethodId',
-  requirePermission('payment-methods.update'),
-  validate(updatePaymentMethodSchema),
+// Add payment method
+router.post('/', 
+  SecurityMiddleware.withPermissions('payment-methods.create'),
+  ValidationMiddleware.validate({ body: addPaymentMethodSchema }),
+  paymentMethodsController.addPaymentMethod
+);
+
+// Update payment method
+router.put('/:methodId', 
+  SecurityMiddleware.withPermissions('payment-methods.update'),
+  ValidationMiddleware.validateParams({
+    methodId: Joi.string().required()
+  }),
+  ValidationMiddleware.validate({ body: updatePaymentMethodSchema }),
   paymentMethodsController.updatePaymentMethod
 );
 
-// Delete Payment Method
-router.delete('/:paymentMethodId',
-  requirePermission('payment-methods.delete'),
+// Delete payment method
+router.delete('/:methodId', 
+  SecurityMiddleware.withPermissions('payment-methods.delete'),
+  ValidationMiddleware.validateParams({
+    methodId: Joi.string().required()
+  }),
   paymentMethodsController.deletePaymentMethod
+);
+
+// Set default payment method
+router.post('/:methodId/default', 
+  SecurityMiddleware.withPermissions('payment-methods.update'),
+  ValidationMiddleware.validateParams({
+    methodId: Joi.string().required()
+  }),
+  paymentMethodsController.setDefaultPaymentMethod
+);
+
+// Get available payment methods
+router.get('/available', 
+  SecurityMiddleware.withPermissions('payment-methods.read'),
+  paymentMethodsController.getAvailablePaymentMethods
+);
+
+// Validate payment method
+router.post('/validate', 
+  ValidationMiddleware.validate({
+    body: Joi.object({
+      type: Joi.string().required(),
+      token: Joi.string().required(),
+      provider: Joi.string().required()
+    })
+  }),
+  paymentMethodsController.validatePaymentMethod
 );
 
 module.exports = router;
