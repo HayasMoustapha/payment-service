@@ -1,19 +1,60 @@
 const express = require('express');
+const Joi = require('joi');
 const router = express.Router();
 const paymentsController = require('../controllers/payments.controller');
-const { authenticate, requirePermission } = require('../../../../shared');
-const { injectUserContext } = require('../../../../shared/context-middleware');
+const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../../event-planner-saas/event-planner-backend/shared');
+const paymentErrorHandler = require('../../error/payment.errorHandler');
 
-// Apply authentication to main payment routes
-router.use(authenticate);
+// Apply authentication to all routes (sauf webhooks)
+router.use(SecurityMiddleware.authenticated());
+
+// Apply context injection for all authenticated routes
+router.use(ContextInjector.injectUserContext());
+
+// Apply error handler for all routes
+router.use(paymentErrorHandler);
 
 // Legacy routes (maintained for backward compatibility)
-router.post('/process', authenticate, injectUserContext, requirePermission('payments.create'), paymentsController.processPayment);
-router.post('/templates/purchase', authenticate, injectUserContext, requirePermission('payments.create'), paymentsController.purchaseTemplate);
-router.post('/webhooks/:gateway', paymentsController.handleWebhook);
-router.get('/status/:transactionId', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getPaymentStatus);
-router.get('/statistics', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getPaymentStatistics);
-router.get('/gateways', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getAvailableGateways);
+router.post('/process', 
+  SecurityMiddleware.withPermissions('payments.create'),
+  paymentsController.processPayment
+);
+
+router.post('/templates/purchase', 
+  SecurityMiddleware.withPermissions('payments.create'),
+  paymentsController.purchaseTemplate
+);
+
+router.post('/webhooks/:gateway', 
+  ValidationMiddleware.validate({
+    params: {
+      gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required()
+    }
+  }),
+  paymentsController.handleWebhook
+);
+
+router.get('/status/:transactionId', 
+  SecurityMiddleware.withPermissions('payments.read'),
+  ValidationMiddleware.validateParams({
+    transactionId: Joi.string().required()
+  }),
+  paymentsController.getPaymentStatus
+);
+
+router.get('/statistics', 
+  SecurityMiddleware.withPermissions('payments.read'),
+  ValidationMiddleware.validateQuery({
+    period: Joi.string().valid('day', 'week', 'month', 'year').default('month'),
+    gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').optional()
+  }),
+  paymentsController.getPaymentStatistics
+);
+
+router.get('/gateways', 
+  SecurityMiddleware.withPermissions('payments.read'),
+  paymentsController.getAvailableGateways
+);
 
 // Service Info routes
 router.get('/', (req, res) => {

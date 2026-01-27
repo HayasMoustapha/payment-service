@@ -1,10 +1,18 @@
 const express = require('express');
+const Joi = require('joi');
 const router = express.Router();
 const stripeController = require('../controllers/stripe.controller');
-const { authenticate, requirePermission } = require('../../../../shared');
-const { injectUserContext } = require('../../../../shared/context-middleware');
-const { validate } = require('../../middleware/validation');
-const Joi = require('joi');
+const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../../event-planner-saas/event-planner-backend/shared');
+const paymentErrorHandler = require('../../error/payment.errorHandler');
+
+// Apply authentication to all routes (sauf webhooks)
+router.use(SecurityMiddleware.authenticated());
+
+// Apply context injection for all authenticated routes
+router.use(ContextInjector.injectUserContext());
+
+// Apply error handler for all routes
+router.use(paymentErrorHandler);
 
 // Validation schemas
 const createPaymentIntentSchema = Joi.object({
