@@ -1,0 +1,578 @@
+{
+  "info": {
+    "name": "Payment Service API",
+    "description": "API collection for Payment Service with centralized security and validation",
+    "version": "2.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3003",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "your_jwt_token_here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 99.99,\n  \"currency\": \"EUR\",\n  \"paymentMethod\": \"stripe\",\n  \"eventId\": \"{{event_id}}\",\n  \"ticketIds\": [\"{{ticket_id_1}}\", \"{{ticket_id_2}}\"],\n  \"description\": \"Payment for Tech Conference 2024 tickets\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments"]
+            },
+            "description": "Create a new payment (requires payments.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/{{payment_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "{{payment_id}}"]
+            },
+            "description": "Get payment details by ID (requires payments.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Payment Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\",\n  \"transactionId\": \"txn_1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/{{payment_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "{{payment_id}}", "status"]
+            },
+            "description": "Update payment status (requires payments.update permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments?eventId={{event_id}}&status=completed&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments"],
+              "query": [
+                {
+                  "key": "eventId",
+                  "value": "{{event_id}}",
+                  "description": "Filter by event ID"
+                },
+                {
+                  "key": "status",
+                  "value": "completed",
+                  "description": "Filter by status"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "List payments with filters (requires payments.read permission)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Stripe Integration",
+      "item": [
+        {
+          "name": "Create Payment Intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 9999,\n  \"currency\": \"eur\",\n  \"paymentMethodId\": \"pm_1234567890\",\n  \"eventId\": \"{{event_id}}\",\n  \"description\": \"Payment for Tech Conference 2024\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/stripe/payment-intent",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "stripe", "payment-intent"]
+            },
+            "description": "Create Stripe payment intent (requires payments.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Payment Intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentIntentId\": \"pi_1234567890\",\n  \"paymentMethodId\": \"pm_1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/stripe/confirm",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "stripe", "confirm"]
+            },
+            "description": "Confirm Stripe payment intent (requires payments.update permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"name\": \"John Doe\",\n  \"phone\": \"+33612345678\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/stripe/customers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "stripe", "customers"]
+            },
+            "description": "Create Stripe customer (requires customers.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Customer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/stripe/customers/{{customer_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "stripe", "customers", "{{customer_id}}"]
+            },
+            "description": "Get Stripe customer details (requires customers.read permission)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "PayPal Integration",
+      "item": [
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": {\n    \"currency_code\": \"EUR\",\n    \"value\": \"99.99\"\n  },\n  \"description\": \"Payment for Tech Conference 2024\",\n  \"returnUrl\": \"https://your-app.com/payment/success\",\n  \"cancelUrl\": \"https://your-app.com/payment/cancel\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/paypal/orders",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "paypal", "orders"]
+            },
+            "description": "Create PayPal order (requires payments.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/paypal/orders/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "paypal", "orders", "{{order_id}}"]
+            },
+            "description": "Get PayPal order details (requires payments.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Capture Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{order_id}}\",\n  \"amount\": {\n    \"currency_code\": \"EUR\",\n    \"value\": \"99.99\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/paypal/orders/{{order_id}}/capture",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "paypal", "orders", "{{order_id}}", "capture"]
+            },
+            "description": "Capture PayPal order payment (requires payments.update permission)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "Generate Invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentId\": \"{{payment_id}}\",\n  \"eventId\": \"{{event_id}}\",\n  \"customerInfo\": {\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"address\": \"123 Main St, Paris, France\"\n  },\n  \"items\": [\n    {\n      \"description\": \"Standard Ticket\",\n      \"quantity\": 2,\n      \"unitPrice\": 99.99,\n      \"total\": 199.98\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/invoices/generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "invoices", "generate"]
+            },
+            "description": "Generate invoice PDF (requires invoices.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Invoice",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/invoices/{{invoice_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "invoices", "{{invoice_id}}"]
+            },
+            "description": "Get invoice details (requires invoices.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Download Invoice PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/invoices/{{invoice_id}}/download",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "invoices", "{{invoice_id}}", "download"]
+            },
+            "description": "Download invoice PDF (requires invoices.read permission)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Refunds",
+      "item": [
+        {
+          "name": "Create Stripe Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentIntentId\": \"pi_1234567890\",\n  \"amount\": 9999,\n  \"reason\": \"requested_by_customer\",\n  \"metadata\": {\n    \"refundReason\": \"Customer requested refund\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/refunds/stripe",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "refunds", "stripe"]
+            },
+            "description": "Create Stripe refund (requires refunds.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create PayPal Refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentId\": \"PAY-1234567890\",\n  \"amount\": 99.99,\n  \"reason\": \"requested_by_customer\",\n  \"note\": \"Customer requested refund for event tickets\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/refunds/paypal",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "refunds", "paypal"]
+            },
+            "description": "Create PayPal refund (requires refunds.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Refund Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/refunds/{{refund_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "refunds", "{{refund_id}}", "status"]
+            },
+            "description": "Get refund status (requires refunds.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "List Refunds",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/refunds?gateway=stripe&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "refunds"],
+              "query": [
+                {
+                  "key": "gateway",
+                  "value": "stripe",
+                  "description": "Filter by payment gateway"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "List refunds with filters (requires refunds.read permission)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payment Methods",
+      "item": [
+        {
+          "name": "Add Payment Method",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"card\",\n  \"provider\": \"stripe\",\n  \"token\": \"tok_1234567890\",\n  \"isDefault\": true,\n  \"metadata\": {\n    \"cardType\": \"visa\",\n    \"last4\": \"4242\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/payment-methods",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "payment-methods"]
+            },
+            "description": "Add payment method (requires payment-methods.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Payment Methods",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/payment-methods",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "payment-methods"]
+            },
+            "description": "Get user payment methods (requires payment-methods.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Payment Method",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isDefault\": false,\n  \"metadata\": {\n    \"nickname\": \"Personal Card\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/payment-methods/{{method_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "payment-methods", "{{method_id}}"]
+            },
+            "description": "Update payment method (requires payment-methods.update permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Payment Method",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/payment-methods/{{method_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "payment-methods", "{{method_id}}"]
+            },
+            "description": "Delete payment method (requires payment-methods.delete permission)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health & Monitoring",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Basic health check (no authentication required)"
+          },
+          "response": []
+        },
+        {
+          "name": "Detailed Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/detailed",
+              "host": ["{{base_url}}"],
+              "path": ["health", "detailed"]
+            },
+            "description": "Detailed health check with service status"
+          },
+          "response": []
+        },
+        {
+          "name": "Provider Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/providers",
+              "host": ["{{base_url}}"],
+              "path": ["health", "providers"]
+            },
+            "description": "Check payment provider status"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Auto-refresh token if needed",
+          "if (pm.collectionVariables.get('auth_token') === 'your_jwt_token_here') {",
+          "    pm.collectionVariables.set('auth_token', 'your_real_jwt_token');",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}

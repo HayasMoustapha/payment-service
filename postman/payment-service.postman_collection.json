@@ -1,8 +1,8 @@
 {
   "info": {
-    "name": "Payment Service API",
-    "description": "API collection for Payment Service with centralized security and validation",
-    "version": "2.0.0",
+    "name": "Payment Service API - COMPLETE",
+    "description": "Complete API collection for Payment Service with all 35 routes implemented",
+    "version": "3.0.0",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -10,7 +10,7 @@
     "bearer": [
       {
         "key": "token",
-        "value": "{{auth_token}}",
+        "value": "{{authToken}}",
         "type": "string"
       }
     ]
@@ -18,12 +18,12 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "http://localhost:3003",
+      "value": "{{baseUrl}}",
       "type": "string"
     },
     {
       "key": "auth_token",
-      "value": "your_jwt_token_here",
+      "value": "{{authToken}}",
       "type": "string"
     }
   ],
@@ -69,9 +69,35 @@
           "response": []
         },
         {
-          "name": "Update Payment Status",
+          "name": "Get User Payments",
           "request": {
-            "method": "PUT",
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments/user/{{user_id}}?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "user", "{{user_id}}"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get payments for a specific user (requires payments.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Capture Payment",
+          "request": {
+            "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
@@ -80,14 +106,37 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"completed\",\n  \"transactionId\": \"txn_1234567890\"\n}"
+              "raw": "{\n  \"captureAmount\": 99.99,\n  \"currency\": \"EUR\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/{{payment_id}}/status",
+              "raw": "{{base_url}}/api/payments/{{payment_id}}/capture",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "{{payment_id}}", "status"]
+              "path": ["api", "payments", "{{payment_id}}", "capture"]
             },
-            "description": "Update payment status (requires payments.update permission)"
+            "description": "Capture a payment (requires payments.update permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Customer requested cancellation\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/{{payment_id}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "{{payment_id}}", "cancel"]
+            },
+            "description": "Cancel a payment (requires payments.update permission)"
           },
           "response": []
         },
@@ -130,7 +179,7 @@
       ]
     },
     {
-      "name": "Stripe Integration",
+      "name": "Stripe Payments",
       "item": [
         {
           "name": "Create Payment Intent",
@@ -144,14 +193,28 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": 9999,\n  \"currency\": \"eur\",\n  \"paymentMethodId\": \"pm_1234567890\",\n  \"eventId\": \"{{event_id}}\",\n  \"description\": \"Payment for Tech Conference 2024\"\n}"
+              "raw": "{\n  \"amount\": 9999,\n  \"currency\": \"eur\",\n  \"customer\": \"{{customerId}}\",\n  \"payment_method\": \"{{paymentMethodId}}\",\n  \"confirmation_method\": \"manual\",\n  \"metadata\": {\n    \"event_id\": \"{{event_id}}\",\n    \"user_id\": \"{{user_id}}\"\n  }\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/stripe/payment-intent",
+              "raw": "{{base_url}}/api/stripe/payment-intent",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "stripe", "payment-intent"]
+              "path": ["api", "stripe", "payment-intent"]
             },
-            "description": "Create Stripe payment intent (requires payments.create permission)"
+            "description": "Create a Stripe payment intent (requires payments.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Payment Intent",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stripe/payment-intent/{{paymentIntentId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stripe", "payment-intent", "{{paymentIntentId}}"]
+            },
+            "description": "Get Stripe payment intent details (requires payments.read permission)"
           },
           "response": []
         },
@@ -167,14 +230,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"paymentIntentId\": \"pi_1234567890\",\n  \"paymentMethodId\": \"pm_1234567890\"\n}"
+              "raw": "{\n  \"payment_intent_id\": \"{{paymentIntentId}}\",\n  \"payment_method\": \"{{paymentMethodId}}\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/stripe/confirm",
+              "raw": "{{base_url}}/api/stripe/confirm",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "stripe", "confirm"]
+              "path": ["api", "stripe", "confirm"]
             },
-            "description": "Confirm Stripe payment intent (requires payments.update permission)"
+            "description": "Confirm a Stripe payment intent (requires payments.update permission)"
           },
           "response": []
         },
@@ -190,14 +253,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"user@example.com\",\n  \"name\": \"John Doe\",\n  \"phone\": \"+33612345678\"\n}"
+              "raw": "{\n  \"email\": \"customer@example.com\",\n  \"name\": \"John Doe\",\n  \"phone\": \"+33612345678\",\n  \"metadata\": {\n    \"user_id\": \"{{user_id}}\"\n  }\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/stripe/customers",
+              "raw": "{{base_url}}/api/stripe/customers",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "stripe", "customers"]
+              "path": ["api", "stripe", "customers"]
             },
-            "description": "Create Stripe customer (requires customers.create permission)"
+            "description": "Create a Stripe customer (requires customers.create permission)"
           },
           "response": []
         },
@@ -207,21 +270,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/payments/stripe/customers/{{customer_id}}",
+              "raw": "{{base_url}}/api/stripe/customers/{{customerId}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "stripe", "customers", "{{customer_id}}"]
+              "path": ["api", "stripe", "customers", "{{customerId}}"]
             },
             "description": "Get Stripe customer details (requires customers.read permission)"
           },
           "response": []
-        }
-      ]
-    },
-    {
-      "name": "PayPal Integration",
-      "item": [
+        },
         {
-          "name": "Create Order",
+          "name": "Create Payment Method",
           "request": {
             "method": "POST",
             "header": [
@@ -232,51 +290,28 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"amount\": {\n    \"currency_code\": \"EUR\",\n    \"value\": \"99.99\"\n  },\n  \"description\": \"Payment for Tech Conference 2024\",\n  \"returnUrl\": \"https://your-app.com/payment/success\",\n  \"cancelUrl\": \"https://your-app.com/payment/cancel\"\n}"
+              "raw": "{\n  \"type\": \"card\",\n  \"card\": {\n    \"number\": \"4242424242424242\",\n    \"exp_month\": 12,\n    \"exp_year\": 2026,\n    \"cvc\": \"123\"\n  },\n  \"billing_details\": {\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\"\n  }\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/paypal/orders",
+              "raw": "{{base_url}}/api/stripe/payment-methods",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "paypal", "orders"]
+              "path": ["api", "stripe", "payment-methods"]
             },
-            "description": "Create PayPal order (requires payments.create permission)"
+            "description": "Create a Stripe payment method (requires payment-methods.create permission)"
           },
           "response": []
         },
         {
-          "name": "Get Order",
+          "name": "Get Customer Payment Methods",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/payments/paypal/orders/{{order_id}}",
+              "raw": "{{base_url}}/api/stripe/customers/{{customerId}}/payment-methods",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "paypal", "orders", "{{order_id}}"]
+              "path": ["api", "stripe", "customers", "{{customerId}}", "payment-methods"]
             },
-            "description": "Get PayPal order details (requires payments.read permission)"
-          },
-          "response": []
-        },
-        {
-          "name": "Capture Order",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"orderId\": \"{{order_id}}\",\n  \"amount\": {\n    \"currency_code\": \"EUR\",\n    \"value\": \"99.99\"\n  }\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/payments/paypal/orders/{{order_id}}/capture",
-              "host": ["{{base_url}}"],
-              "path": ["api", "payments", "paypal", "orders", "{{order_id}}", "capture"]
-            },
-            "description": "Capture PayPal order payment (requires payments.update permission)"
+            "description": "Get customer's Stripe payment methods (requires payment-methods.read permission)"
           },
           "response": []
         }
@@ -286,7 +321,7 @@
       "name": "Invoices",
       "item": [
         {
-          "name": "Generate Invoice",
+          "name": "Generate Invoice PDF",
           "request": {
             "method": "POST",
             "header": [
@@ -297,12 +332,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"paymentId\": \"{{payment_id}}\",\n  \"eventId\": \"{{event_id}}\",\n  \"customerInfo\": {\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"address\": \"123 Main St, Paris, France\"\n  },\n  \"items\": [\n    {\n      \"description\": \"Standard Ticket\",\n      \"quantity\": 2,\n      \"unitPrice\": 99.99,\n      \"total\": 199.98\n    }\n  ]\n}"
+              "raw": "{\n  \"payment_id\": \"{{payment_id}}\",\n  \"customer_details\": {\n    \"name\": \"John Doe\",\n    \"email\": \"john.doe@example.com\",\n    \"address\": \"123 Main St, Paris, France\"\n  },\n  \"items\": [\n    {\n      \"description\": \"Tech Conference 2024 Ticket\",\n      \"quantity\": 2,\n      \"unit_price\": 99.99,\n      \"total\": 199.98\n    }\n  ],\n  \"due_date\": \"2026-02-27\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/invoices/generate",
+              "raw": "{{base_url}}/api/invoices/generate",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "invoices", "generate"]
+              "path": ["api", "invoices", "generate"]
             },
             "description": "Generate invoice PDF (requires invoices.create permission)"
           },
@@ -314,9 +349,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/payments/invoices/{{invoice_id}}",
+              "raw": "{{base_url}}/api/invoices/{{invoiceId}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "invoices", "{{invoice_id}}"]
+              "path": ["api", "invoices", "{{invoiceId}}"]
             },
             "description": "Get invoice details (requires invoices.read permission)"
           },
@@ -328,11 +363,42 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/payments/invoices/{{invoice_id}}/download",
+              "raw": "{{base_url}}/api/invoices/{{invoiceId}}/download",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "invoices", "{{invoice_id}}", "download"]
+              "path": ["api", "invoices", "{{invoiceId}}", "download"]
             },
             "description": "Download invoice PDF (requires invoices.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "List Invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/invoices?page=1&limit=20&status=paid",
+              "host": ["{{base_url}}"],
+              "path": ["api", "invoices"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "status",
+                  "value": "paid",
+                  "description": "Filter by status"
+                }
+              ]
+            },
+            "description": "List invoices with filters (requires invoices.read permission)"
           },
           "response": []
         }
@@ -353,14 +419,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"paymentIntentId\": \"pi_1234567890\",\n  \"amount\": 9999,\n  \"reason\": \"requested_by_customer\",\n  \"metadata\": {\n    \"refundReason\": \"Customer requested refund\"\n  }\n}"
+              "raw": "{\n  \"payment_intent_id\": \"{{paymentIntentId}}\",\n  \"amount\": 5000,\n  \"reason\": \"requested_by_customer\",\n  \"metadata\": {\n    \"refund_reason\": \"Customer not satisfied\"\n  }\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/refunds/stripe",
+              "raw": "{{base_url}}/api/refunds/stripe",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "refunds", "stripe"]
+              "path": ["api", "refunds", "stripe"]
             },
-            "description": "Create Stripe refund (requires refunds.create permission)"
+            "description": "Create a Stripe refund (requires refunds.create permission)"
           },
           "response": []
         },
@@ -376,14 +442,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"paymentId\": \"PAY-1234567890\",\n  \"amount\": 99.99,\n  \"reason\": \"requested_by_customer\",\n  \"note\": \"Customer requested refund for event tickets\"\n}"
+              "raw": "{\n  \"capture_id\": \"{{captureId}}\",\n  \"amount\": {\n    \"currency_code\": \"EUR\",\n    \"value\": \"50.00\"\n  },\n  \"reason\": \"Customer requested refund\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/refunds/paypal",
+              "raw": "{{base_url}}/api/refunds/paypal",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "refunds", "paypal"]
+              "path": ["api", "refunds", "paypal"]
             },
-            "description": "Create PayPal refund (requires refunds.create permission)"
+            "description": "Create a PayPal refund (requires refunds.create permission)"
           },
           "response": []
         },
@@ -393,11 +459,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/payments/refunds/{{refund_id}}/status",
+              "raw": "{{base_url}}/api/refunds/{{refundId}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "refunds", "{{refund_id}}", "status"]
+              "path": ["api", "refunds", "{{refundId}}"]
             },
-            "description": "Get refund status (requires refunds.read permission)"
+            "description": "Get refund status by ID (requires refunds.read permission)"
           },
           "response": []
         },
@@ -407,15 +473,10 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/payments/refunds?gateway=stripe&page=1&limit=20",
+              "raw": "{{base_url}}/api/refunds?page=1&limit=20&status=succeeded",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "refunds"],
+              "path": ["api", "refunds"],
               "query": [
-                {
-                  "key": "gateway",
-                  "value": "stripe",
-                  "description": "Filter by payment gateway"
-                },
                 {
                   "key": "page",
                   "value": "1",
@@ -425,6 +486,11 @@
                   "key": "limit",
                   "value": "20",
                   "description": "Items per page"
+                },
+                {
+                  "key": "status",
+                  "value": "succeeded",
+                  "description": "Filter by status"
                 }
               ]
             },
@@ -438,6 +504,32 @@
       "name": "Payment Methods",
       "item": [
         {
+          "name": "Get User Payment Methods",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payment-methods?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payment-methods"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get user's payment methods (requires payment-methods.read permission)"
+          },
+          "response": []
+        },
+        {
           "name": "Add Payment Method",
           "request": {
             "method": "POST",
@@ -449,28 +541,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"card\",\n  \"provider\": \"stripe\",\n  \"token\": \"tok_1234567890\",\n  \"isDefault\": true,\n  \"metadata\": {\n    \"cardType\": \"visa\",\n    \"last4\": \"4242\"\n  }\n}"
+              "raw": "{\n  \"type\": \"card\",\n  \"provider\": \"stripe\",\n  \"card\": {\n    \"number\": \"4242424242424242\",\n    \"exp_month\": 12,\n    \"exp_year\": 2026,\n    \"cvc\": \"123\"\n  },\n  \"billing_address\": {\n    \"line1\": \"123 Main St\",\n    \"city\": \"Paris\",\n    \"country\": \"FR\",\n    \"postal_code\": \"75001\"\n  },\n  \"is_default\": true\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/payment-methods",
+              "raw": "{{base_url}}/api/payment-methods",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "payment-methods"]
+              "path": ["api", "payment-methods"]
             },
-            "description": "Add payment method (requires payment-methods.create permission)"
-          },
-          "response": []
-        },
-        {
-          "name": "Get User Payment Methods",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/payments/payment-methods",
-              "host": ["{{base_url}}"],
-              "path": ["api", "payments", "payment-methods"]
-            },
-            "description": "Get user payment methods (requires payment-methods.read permission)"
+            "description": "Add a new payment method (requires payment-methods.create permission)"
           },
           "response": []
         },
@@ -486,12 +564,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"isDefault\": false,\n  \"metadata\": {\n    \"nickname\": \"Personal Card\"\n  }\n}"
+              "raw": "{\n  \"is_default\": true,\n  \"billing_address\": {\n    \"line1\": \"456 Updated St\",\n    \"city\": \"Lyon\",\n    \"country\": \"FR\",\n    \"postal_code\": \"69001\"\n  }\n}"
             },
             "url": {
-              "raw": "{{base_url}}/api/payments/payment-methods/{{method_id}}",
+              "raw": "{{base_url}}/api/payment-methods/{{methodId}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "payment-methods", "{{method_id}}"]
+              "path": ["api", "payment-methods", "{{methodId}}"]
             },
             "description": "Update payment method (requires payment-methods.update permission)"
           },
@@ -503,11 +581,259 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/payments/payment-methods/{{method_id}}",
+              "raw": "{{base_url}}/api/payment-methods/{{methodId}}",
               "host": ["{{base_url}}"],
-              "path": ["api", "payments", "payment-methods", "{{method_id}}"]
+              "path": ["api", "payment-methods", "{{methodId}}"]
             },
             "description": "Delete payment method (requires payment-methods.delete permission)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Wallets",
+      "item": [
+        {
+          "name": "Get Wallet Balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/balance",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "balance"]
+            },
+            "description": "Get wallet balance (requires wallets.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Wallet Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/transactions?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "transactions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get wallet transactions (requires wallets.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Wallet Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/statistics",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "statistics"]
+            },
+            "description": "Get wallet statistics (requires wallets.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Withdrawal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 100.00,\n  \"currency\": \"EUR\",\n  \"destination\": \"iban:FR7630006000011234567890189\",\n  \"description\": \"Monthly withdrawal\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/wallets/withdrawals",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "withdrawals"]
+            },
+            "description": "Create withdrawal request (requires wallets.withdraw permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Withdrawals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/withdrawals?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "withdrawals"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get withdrawal requests (requires wallets.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Commission Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/commissions/statistics",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "commissions", "statistics"]
+            },
+            "description": "Get commission statistics (requires commissions.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get User Commissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/commissions/user?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "commissions", "user"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get user commissions (requires commissions.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Commission Rates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/commissions/rates",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "commissions", "rates"]
+            },
+            "description": "Get commission rates (requires commissions.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Commission Projection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_id\": \"{{event_id}}\",\n  \"projected_revenue\": 5000.00,\n  \"projection_period\": \"monthly\",\n  \"notes\": \"Expected high attendance\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/wallets/commissions/projections",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "commissions", "projections"]
+            },
+            "description": "Create commission projection (requires commissions.create permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Commission Projections",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/commissions/projections?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "commissions", "projections"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Get commission projections (requires commissions.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Commission Projection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/wallets/commissions/projections/{{projectionId}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "commissions", "projections", "{{projectionId}}"]
+            },
+            "description": "Get commission projection by ID (requires commissions.read permission)"
+          },
+          "response": []
+        },
+        {
+          "name": "Settle Commission Projection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actual_amount\": 5200.00,\n  \"notes\": \"Higher than expected attendance\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/wallets/commissions/projections/{{projectionId}}/settle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "wallets", "commissions", "projections", "{{projectionId}}", "settle"]
+            },
+            "description": "Settle commission projection (requires commissions.settle permission)"
           },
           "response": []
         }
@@ -540,7 +866,35 @@
               "host": ["{{base_url}}"],
               "path": ["health", "detailed"]
             },
-            "description": "Detailed health check with service status"
+            "description": "Detailed health check (authentication required)"
+          },
+          "response": []
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/ready",
+              "host": ["{{base_url}}"],
+              "path": ["health", "ready"]
+            },
+            "description": "Readiness probe for Kubernetes"
+          },
+          "response": []
+        },
+        {
+          "name": "Liveness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/live",
+              "host": ["{{base_url}}"],
+              "path": ["health", "live"]
+            },
+            "description": "Liveness probe for Kubernetes"
           },
           "response": []
         },
@@ -554,7 +908,7 @@
               "host": ["{{base_url}}"],
               "path": ["health", "providers"]
             },
-            "description": "Check payment provider status"
+            "description": "Get payment providers status"
           },
           "response": []
         }
@@ -566,9 +920,9 @@
       "listen": "prerequest",
       "script": {
         "exec": [
-          "// Auto-refresh token if needed",
-          "if (pm.collectionVariables.get('auth_token') === 'your_jwt_token_here') {",
-          "    pm.collectionVariables.set('auth_token', 'your_real_jwt_token');",
+          "// Auto-refresh token if expired",
+          "if (pm.collectionVariables.get('authToken') === 'your_jwt_token_here') {",
+          "    pm.collectionVariables.set('authToken', 'your_real_jwt_token');",
           "}"
         ],
         "type": "text/javascript"
