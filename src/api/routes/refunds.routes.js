@@ -1,9 +1,18 @@
 const express = require('express');
+const Joi = require('joi');
 const router = express.Router();
 const refundsController = require('../controllers/refunds.controller');
-const { authenticate, requirePermission } = require('../../../../shared');
-const { validate } = require('../../middleware/validation');
-const Joi = require('joi');
+const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../shared');
+const paymentErrorHandler = require('../../error/payment.errorHandler');
+
+// Apply authentication to all routes
+router.use(SecurityMiddleware.authenticated());
+
+// Apply context injection for all authenticated routes
+router.use(ContextInjector.injectUserContext());
+
+// Apply error handler for all routes
+router.use(paymentErrorHandler);
 
 // Validation schemas
 const createStripeRefundSchema = Joi.object({
@@ -14,41 +23,69 @@ const createStripeRefundSchema = Joi.object({
 });
 
 const createPayPalRefundSchema = Joi.object({
-  captureId: Joi.string().required(),
-  amount: Joi.object({
-    currency_code: Joi.string().required(),
-    value: Joi.string().required()
-  }).optional(),
-  reason: Joi.string().default('Customer requested refund')
+  paymentId: Joi.string().required(),
+  amount: Joi.number().integer().min(100).optional(),
+  reason: Joi.string().valid('duplicate', 'fraudulent', 'requested_by_customer').default('requested_by_customer'),
+  note: Joi.string().optional()
 });
 
-// Apply authentication to all routes
-router.use(authenticate);
-
-// Stripe Refunds
-router.post('/stripe',
-  requirePermission('refunds.create'),
-  validate(createStripeRefundSchema),
+// Stripe refunds
+router.post('/stripe', 
+  SecurityMiddleware.withPermissions('refunds.create'),
+  ValidationMiddleware.validate({ body: createStripeRefundSchema }),
   refundsController.createStripeRefund
 );
 
-// PayPal Refunds
-router.post('/paypal',
-  requirePermission('refunds.create'),
-  validate(createPayPalRefundSchema),
+router.get('/stripe/:refundId', 
+  SecurityMiddleware.withPermissions('refunds.read'),
+  ValidationMiddleware.validateParams({
+    refundId: Joi.string().required()
+  }),
+  refundsController.getStripeRefund
+);
+
+router.get('/stripe', 
+  SecurityMiddleware.withPermissions('refunds.read'),
+  refundsController.listStripeRefunds
+);
+
+// PayPal refunds
+router.post('/paypal', 
+  SecurityMiddleware.withPermissions('refunds.create'),
+  ValidationMiddleware.validate({ body: createPayPalRefundSchema }),
   refundsController.createPayPalRefund
 );
 
-// Get Refund Status
-router.get('/:refundId',
-  requirePermission('refunds.read'),
+router.get('/paypal/:refundId', 
+  SecurityMiddleware.withPermissions('refunds.read'),
+  ValidationMiddleware.validateParams({
+    refundId: Joi.string().required()
+  }),
+  refundsController.getPayPalRefund
+);
+
+router.get('/paypal', 
+  SecurityMiddleware.withPermissions('refunds.read'),
+  refundsController.listPayPalRefunds
+);
+
+// Generic refund status
+router.get('/status/:refundId', 
+  SecurityMiddleware.withPermissions('refunds.read'),
+  ValidationMiddleware.validateParams({
+    refundId: Joi.string().required()
+  }),
   refundsController.getRefundStatus
 );
 
-// List Refunds
-router.get('/',
-  requirePermission('refunds.read'),
-  refundsController.listRefunds
+// Refund statistics
+router.get('/statistics', 
+  SecurityMiddleware.withPermissions('refunds.read'),
+  ValidationMiddleware.validateQuery({
+    period: Joi.string().valid('day', 'week', 'month', 'year').default('month'),
+    gateway: Joi.string().valid('stripe', 'paypal').optional()
+  }),
+  refundsController.getRefundStatistics
 );
 
 module.exports = router;

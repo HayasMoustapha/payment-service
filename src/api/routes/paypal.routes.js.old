@@ -26,35 +26,60 @@ const createOrderSchema = Joi.object({
 });
 
 const captureOrderSchema = Joi.object({
-  orderId: Joi.string().required(),
+  orderId: Joi.string().required()
+});
+
+const createInvoiceSchema = Joi.object({
   amount: Joi.object({
     currency_code: Joi.string().required(),
     value: Joi.string().required()
-  }).optional()
+  }).required(),
+  description: Joi.string().required(),
+  merchantInfo: Joi.object({
+    email: Joi.string().email().required()
+  }).required(),
+  billingInfo: Joi.array().items(
+    Joi.object({
+      email: Joi.string().email().required(),
+      name: Joi.object({
+        given_name: Joi.string().required(),
+        surname: Joi.string().required()
+      }).required()
+    })
+  ).required()
 });
 
+// Apply authentication to all routes
+router.use(authenticate);
+
 // PayPal Orders
-router.post('/orders', 
-  SecurityMiddleware.withPermissions('payments.create'),
-  ValidationMiddleware.validate({ body: createOrderSchema }),
+router.post('/orders',
+  requirePermission('payments.create'),
+  validate(createOrderSchema),
   paypalController.createOrder
 );
 
-router.get('/orders/:orderId', 
-  SecurityMiddleware.withPermissions('payments.read'),
-  ValidationMiddleware.validateParams({
-    orderId: Joi.string().required()
-  }),
+router.get('/orders/:orderId',
+  requirePermission('payments.read'),
   paypalController.getOrder
 );
 
-router.post('/orders/:orderId/capture', 
-  SecurityMiddleware.withPermissions('payments.update'),
-  ValidationMiddleware.validateParams({
-    orderId: Joi.string().required()
-  }),
-  ValidationMiddleware.validate({ body: captureOrderSchema }),
+router.post('/orders/:orderId/capture',
+  requirePermission('payments.update'),
+  validate(captureOrderSchema),
   paypalController.captureOrder
+);
+
+// PayPal Invoices
+router.post('/invoices',
+  requirePermission('invoices.create'),
+  validate(createInvoiceSchema),
+  paypalController.createInvoice
+);
+
+router.get('/invoices/:invoiceId',
+  requirePermission('invoices.read'),
+  paypalController.getInvoice
 );
 
 module.exports = router;

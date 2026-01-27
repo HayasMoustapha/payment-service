@@ -388,7 +388,7 @@ class WebhookService {
    */
   async notifyPaymentSuccess(paymentData) {
     try {
-      const notificationClient = require('../../shared/notification-client');
+      const notificationClient = require(../../../shared)))))/notification-client');
       
       // Envoyer une confirmation email
       await notificationClient.sendEmail({
@@ -403,7 +403,7 @@ class WebhookService {
       });
 
       // Mettre à jour le statut des tickets
-      const ticketClient = require('../../shared/ticket-client');
+      const ticketClient = require(../../../shared)))))/ticket-client');
       await ticketClient.updateTicketsStatus(paymentData.metadata.ticketIds, 'paid');
 
       logger.info('Payment success notifications sent', {
@@ -422,7 +422,7 @@ class WebhookService {
    */
   async notifyPaymentFailure(paymentData) {
     try {
-      const notificationClient = require('../../shared/notification-client');
+      const notificationClient = require(../../../shared)))))/notification-client');
       
       // Envoyer un email d'échec
       await notificationClient.sendEmail({
@@ -453,7 +453,7 @@ class WebhookService {
    */
   async notifyDisputeCreated(dispute) {
     try {
-      const notificationClient = require('../../shared/notification-client');
+      const notificationClient = require(../../../shared)))))/notification-client');
       
       // Notifier l'admin
       await notificationClient.sendEmail({

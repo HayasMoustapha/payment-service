@@ -1,87 +1,103 @@
 const express = require('express');
+const Joi = require('joi');
 const router = express.Router();
 const walletsController = require('../controllers/wallets.controller');
-const { authenticate, requirePermission } = require('../../../../shared');
-const { validate, schemas } = require('../../middleware/validation');
+const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require(../../../shared)))))');
+const paymentErrorHandler = require('../../error/payment.errorHandler');
 
 /**
  * Routes pour la gestion des wallets et commissions
  */
 
 // Apply authentication to all routes
-router.use(authenticate);
+router.use(SecurityMiddleware.authenticated());
+
+// Apply context injection for all authenticated routes
+router.use(ContextInjector.injectUserContext());
+
+// Apply error handler for all routes
+router.use(paymentErrorHandler);
 
 // Wallet Management
 router.get('/balance', 
-  requirePermission('wallets.read'),
+  SecurityMiddleware.withPermissions('wallets.read'),
   walletsController.getWalletBalance
 );
 
 router.get('/transactions', 
-  requirePermission('wallets.read'),
+  SecurityMiddleware.withPermissions('wallets.read'),
   walletsController.getWalletTransactions
 );
 
 router.get('/statistics', 
-  requirePermission('wallets.read'),
+  SecurityMiddleware.withPermissions('wallets.read'),
   walletsController.getWalletStatistics
 );
 
 // Withdrawals
 router.post('/withdrawals', 
-  requirePermission('wallets.withdraw'),
-  validate({
-    amount: schemas.amount.required(),
-    withdrawalMethod: schemas.string.required(),
-    withdrawalDetails: schemas.object.required()
-  }, 'body'),
+  SecurityMiddleware.withPermissions('wallets.withdraw'),
+  ValidationMiddleware.validate({
+    body: Joi.object({
+      amount: Joi.number().positive().required(),
+      withdrawalMethod: Joi.string().required(),
+      withdrawalDetails: Joi.object().required()
+    })
+  }),
   walletsController.createWithdrawal
 );
 
 router.get('/withdrawals', 
-  requirePermission('wallets.read'),
+  SecurityMiddleware.withPermissions('wallets.read'),
   walletsController.getWithdrawals
 );
 
 // Commission Management
 router.get('/commissions/statistics', 
-  requirePermission('commissions.read'),
+  SecurityMiddleware.withPermissions('commissions.read'),
   walletsController.getCommissionStatistics
 );
 
 router.get('/commissions/user', 
-  requirePermission('commissions.read'),
+  SecurityMiddleware.withPermissions('commissions.read'),
   walletsController.getUserCommissions
 );
 
 router.get('/commissions/rates', 
-  requirePermission('commissions.read'),
+  SecurityMiddleware.withPermissions('commissions.read'),
   walletsController.getCommissionRates
 );
 
 router.post('/commissions/projections', 
-  requirePermission('commissions.read'),
-  validate({
-    templateSales: schemas.number.optional(),
-    ticketSales: schemas.number.optional(),
-    serviceFees: schemas.number.optional(),
-    withdrawals: schemas.number.optional()
-  }, 'body'),
-  walletsController.calculateProjectedCommissions
+  SecurityMiddleware.withPermissions('commissions.create'),
+  ValidationMiddleware.validate({
+    body: Joi.object({
+      period: Joi.string().valid('daily', 'weekly', 'monthly').required(),
+      commissionRate: Joi.number().min(0).max(0.5).required()
+    })
+  }),
+  walletsController.createCommissionProjection
 );
 
-// Admin Only Routes
-router.post('/transfer', 
-  requirePermission('admin.wallet.transfer'),
-  validate({
-    fromUserId: schemas.uuid.required(),
-    fromUserType: schemas.string.required(),
-    toUserId: schemas.uuid.required(),
-    toUserType: schemas.string.required(),
-    amount: schemas.amount.required(),
-    metadata: schemas.object.optional()
-  }, 'body'),
-  walletsController.transferBetweenWallets
+router.get('/commissions/projections', 
+  SecurityMiddleware.withPermissions('commissions.read'),
+  walletsController.getCommissionProjections
+);
+
+router.get('/commissions/projections/:projectionId', 
+  SecurityMiddleware.withPermissions('commissions.read'),
+  ValidationMiddleware.validateParams({
+    projectionId: Joi.string().required()
+  }),
+  walletsController.getCommissionProjection
+);
+
+router.post('/commissions/projections/:projectionId/settle', 
+  SecurityMiddleware.withPermissions('commissions.settle'),
+  ValidationMiddleware.validateParams({
+    projectionId: Joi.string().required()
+  }),
+  walletsController.settleCommissionProjection
 );
 
 module.exports = router;

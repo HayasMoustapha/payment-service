@@ -1,44 +1,56 @@
 const express = require('express');
 const router = express.Router();
 const healthController = require('../controllers/health.controller');
+const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require(../../../shared)))))');
+const paymentErrorHandler = require('../../error/payment.errorHandler');
 
-// Health Check Routes (no authentication required)
+// Health check route (no authentication required)
 router.get('/',
-  healthController.simpleHealthCheck
+  ValidationMiddleware.validate({
+    query: Joi.object({
+      detailed: Joi.boolean().default(false)
+    })
+  }),
+  healthController.getHealthCheck
 );
 
+// Detailed health check (authentication required)
 router.get('/detailed',
-  healthController.detailedHealthCheck
+  SecurityMiddleware.authenticated(),
+  ValidationMiddleware.validateQuery({
+    detailed: Joi.boolean().default(true)
+  }),
+  healthController.getDetailedHealthCheck
 );
 
-router.get('/ready',
-  healthController.readinessCheck
+// Service status (authentication required)
+router.get('/status',
+  SecurityMiddleware.authenticated(),
+  ValidationMiddleware.validateQuery({
+    service: Joi.string().optional()
+  }),
+  healthController.getServiceStatus
 );
 
-router.get('/live',
-  healthController.livenessCheck
+// Database status (authentication required)
+router.get('/database',
+  SecurityMiddleware.authenticated(),
+  healthController.getDatabaseStatus
 );
 
-// Component Health Checks
-router.get('/components/stripe',
-  healthController.stripeHealthCheck
+// External services status (authentication required)
+router.get('/external',
+  SecurityMiddleware.authenticated(),
+  ValidationMiddleware.validateQuery({
+    service: Joi.string().optional()
+  }),
+  healthController.getExternalServicesStatus
 );
 
-router.get('/components/paypal',
-  healthController.paypalHealthCheck
-);
-
-router.get('/components/invoices',
-  healthController.invoicesHealthCheck
-);
-
-router.get('/components/refunds',
-  healthController.refundsHealthCheck
-);
-
-// Providers Status
-router.get('/providers',
-  healthController.providersStatus
+// Metrics (authentication required)
+router.get('/metrics',
+  SecurityMiddleware.authenticated(),
+  healthController.getMetrics
 );
 
 module.exports = router;

@@ -1,5 +1,17 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const logger = require('../../utils/logger');
+
+// Initialiser Stripe seulement si la clé est disponible
+let stripe = null;
+if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== 'sk_test_4242424242424242') {
+  try {
+    stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    logger.info('Stripe initialized successfully');
+  } catch (error) {
+    logger.warn('Stripe initialization failed:', error.message);
+  }
+} else {
+  logger.warn('Stripe disabled - no valid API key provided');
+}
 
 /**
  * Service Stripe pour le traitement des paiements

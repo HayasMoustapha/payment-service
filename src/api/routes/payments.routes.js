@@ -2,7 +2,7 @@ const express = require('express');
 const Joi = require('joi');
 const router = express.Router();
 const paymentsController = require('../controllers/payments.controller');
-const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../../event-planner-saas/event-planner-backend/shared');
+const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../shared');
 const paymentErrorHandler = require('../../error/payment.errorHandler');
 
 // Apply authentication to all routes (sauf webhooks)

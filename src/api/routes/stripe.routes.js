@@ -2,7 +2,7 @@ const express = require('express');
 const Joi = require('joi');
 const router = express.Router();
 const stripeController = require('../controllers/stripe.controller');
-const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../../event-planner-saas/event-planner-backend/shared');
+const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../shared');
 const paymentErrorHandler = require('../../error/payment.errorHandler');
 
 // Apply authentication to all routes (sauf webhooks)
@@ -40,48 +40,63 @@ const confirmPaymentSchema = Joi.object({
   paymentMethodId: Joi.string().required()
 });
 
-// Apply authentication to all routes
-router.use(authenticate);
+// Apply authentication to all routes (sauf webhooks)
+router.use(SecurityMiddleware.authenticated());
+
+// Apply context injection for all authenticated routes
+router.use(ContextInjector.injectUserContext());
+
+// Apply error handler for all routes
+router.use(paymentErrorHandler);
 
 // Stripe Payment Intents
 router.post('/payment-intent', 
-  requirePermission('payments.create'),
-  validate(createPaymentIntentSchema),
+  SecurityMiddleware.withPermissions('payments.create'),
+  ValidationMiddleware.validate({ body: createPaymentIntentSchema }),
   stripeController.createPaymentIntent
 );
 
 router.get('/payment-intent/:paymentIntentId',
-  requirePermission('payments.read'),
+  SecurityMiddleware.withPermissions('payments.read'),
+  ValidationMiddleware.validateParams({
+    paymentIntentId: Joi.string().required()
+  }),
   stripeController.getPaymentIntent
 );
 
 router.post('/confirm',
-  requirePermission('payments.update'),
-  validate(confirmPaymentSchema),
+  SecurityMiddleware.withPermissions('payments.update'),
+  ValidationMiddleware.validate({ body: confirmPaymentSchema }),
   stripeController.confirmPaymentIntent
 );
 
 // Stripe Customers
 router.post('/customers',
-  requirePermission('customers.create'),
-  validate(createCustomerSchema),
+  SecurityMiddleware.withPermissions('customers.create'),
+  ValidationMiddleware.validate({ body: createCustomerSchema }),
   stripeController.createCustomer
 );
 
 router.get('/customers/:customerId',
-  requirePermission('customers.read'),
+  SecurityMiddleware.withPermissions('customers.read'),
+  ValidationMiddleware.validateParams({
+    customerId: Joi.string().required()
+  }),
   stripeController.getCustomer
 );
 
 // Stripe Payment Methods
 router.post('/payment-methods',
-  requirePermission('payment-methods.create'),
-  validate(createPaymentMethodSchema),
+  SecurityMiddleware.withPermissions('payment-methods.create'),
+  ValidationMiddleware.validate({ body: createPaymentMethodSchema }),
   stripeController.createPaymentMethod
 );
 
 router.get('/customers/:customerId/payment-methods',
-  requirePermission('payment-methods.read'),
+  SecurityMiddleware.withPermissions('payment-methods.read'),
+  ValidationMiddleware.validateParams({
+    customerId: Joi.string().required()
+  }),
   stripeController.getCustomerPaymentMethods
 );
 
