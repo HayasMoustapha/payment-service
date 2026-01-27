@@ -12,6 +12,9 @@ const {
 } = require('../../utils/response');
 const logger = require('../../utils/logger');
 
+// Constante par défaut pour l'utilisateur ID
+const DEFAULT_USER_ID = 1;
+
 /**
  * Contrôleur pour les paiements
  * Gère les paiements multi-providers avec abstraction
@@ -35,17 +38,12 @@ class PaymentsController {
         preferredGateways = [],
         metadata = {}
       } = req.body;
-      
-      logger.payment('Processing payment', {
-        amount,
-        currency,
-        paymentMethod,
-        eventId,
-        userId: req.user?.id
-      });
+
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
 
       const result = await paymentService.processPayment({
-        userId: req.user?.id,
+        userId,
         eventId,
         amount,
         currency,
@@ -56,144 +54,47 @@ class PaymentsController {
         customerPhone,
         returnUrl,
         preferredGateways,
-        metadata: {
-          ...metadata,
-          userId: req.user?.id
-        }
+        metadata
       });
-
+      
       if (!result.success) {
         return res.status(400).json(
-          paymentErrorResponse(result.error, 'PAYMENT_FAILED')
+          paymentErrorResponse(result.error, result.code)
         );
       }
 
-      return res.status(201).json(
-        createdResponse('Payment initiated successfully', result)
-      );
-
+      res.status(201).json(createdResponse('Paiement initié avec succès', result.data));
     } catch (error) {
-      logger.error('Payment processing failed', {
-        error: error.message,
-        userId: req.user?.id
-      });
-      
-      return res.status(500).json(
-        errorResponse('Payment processing failed', error.message)
-      );
+      logger.error('Erreur traitement paiement:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 
   /**
-   * Process template purchase payment
+   * Confirm a payment (webhook handler)
    */
-  async purchaseTemplate(req, res) {
+  async confirmPayment(req, res) {
     try {
-      const {
-        templateId,
-        designerId,
-        amount,
-        currency = 'EUR',
-        paymentMethod,
-        customerEmail,
-        customerName,
-        customerPhone,
-        returnUrl,
-        preferredGateways = [],
-        metadata = {}
-      } = req.body;
+      const { paymentId, provider, status, metadata = {} } = req.body;
       
-      logger.payment('Processing template purchase', {
-        templateId,
-        designerId,
-        amount,
-        currency,
-        userId: req.user?.id
-      });
-
-      const result = await paymentService.processTemplatePurchase({
-        userId: req.user?.id,
-        templateId,
-        designerId,
-        amount,
-        currency,
-        paymentMethod,
-        customerEmail,
-        customerName,
-        customerPhone,
-        returnUrl,
-        preferredGateways,
-        metadata: {
-          ...metadata,
-          userId: req.user?.id
-        }
-      });
-
-      if (!result.success) {
+      if (!paymentId || !provider || !status) {
         return res.status(400).json(
-          paymentErrorResponse(result.error, 'TEMPLATE_PURCHASE_FAILED')
+          paymentErrorResponse('Payment ID, provider et status requis', 'MISSING_REQUIRED_FIELDS')
         );
       }
 
-      return res.status(201).json(
-        createdResponse('Template purchase initiated successfully', result)
-      );
-
-    } catch (error) {
-      logger.error('Template purchase failed', {
-        error: error.message,
-        userId: req.user?.id
-      });
+      const result = await paymentService.confirmPayment(paymentId, provider, status, metadata);
       
-      return res.status(500).json(
-        errorResponse('Template purchase failed', error.message)
-      );
-    }
-  }
-
-  /**
-   * Handle webhook from payment providers
-   */
-  async handleWebhook(req, res) {
-    try {
-      const { gateway } = req.params;
-      const signature = req.headers['stripe-signature'] || 
-                        req.headers['paypal-transmission-sig'] || 
-                        req.headers['x-cinetpay-signature'] ||
-                        req.headers['authorization'];
-
-      const webhookData = {
-        payload: JSON.stringify(req.body),
-        signature,
-        secret: process.env[`${gateway.toUpperCase()}_WEBHOOK_SECRET`]
-      };
-
-      logger.payment('Processing webhook', {
-        gateway,
-        eventType: req.body.type || 'unknown'
-      });
-
-      const result = await paymentService.processWebhook(gateway, webhookData);
-
       if (!result.success) {
         return res.status(400).json(
-          errorResponse('Webhook processing failed', result.error)
+          paymentErrorResponse(result.error, result.code)
         );
       }
 
-      return res.status(200).json(
-        successResponse('Webhook processed successfully', result)
-      );
-
+      res.json(successResponse('Paiement confirmé avec succès', result.data));
     } catch (error) {
-      logger.error('Webhook processing failed', {
-        error: error.message,
-        gateway: req.params.gateway
-      });
-      
-      return res.status(500).json(
-        errorResponse('Webhook processing failed', error.message)
-      );
+      logger.error('Erreur confirmation paiement:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 
@@ -202,149 +103,180 @@ class PaymentsController {
    */
   async getPaymentStatus(req, res) {
     try {
-      const { transactionId } = req.params;
+      const { paymentId } = req.params;
       
-      logger.payment('Getting payment status', {
-        transactionId,
-        userId: req.user?.id
-      });
-
-      const result = await paymentService.getPaymentStatus(transactionId);
-
-      if (!result.success) {
-        return res.status(404).json(
-          notFoundResponse('Payment transaction not found', result.error)
+      if (!paymentId) {
+        return res.status(400).json(
+          paymentErrorResponse('Payment ID requis', 'MISSING_PAYMENT_ID')
         );
       }
 
-      return res.status(200).json(
-        successResponse('Payment status retrieved', result)
-      );
-
-    } catch (error) {
-      logger.error('Payment status retrieval failed', {
-        error: error.message,
-        transactionId: req.params.transactionId
-      });
+      const result = await paymentService.getPaymentStatus(paymentId);
       
-      return res.status(500).json(
-        errorResponse('Payment status retrieval failed', error.message)
-      );
+      if (!result.success) {
+        return res.status(404).json(
+          notFoundResponse('Paiement non trouvé', result.error)
+        );
+      }
+
+      res.json(paymentResponse('Statut du paiement récupéré', result.data));
+    } catch (error) {
+      logger.error('Erreur récupération statut paiement:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
+    }
+  }
+
+  /**
+   * Get payment details
+   */
+  async getPayment(req, res) {
+    try {
+      const { paymentId } = req.params;
+      
+      if (!paymentId) {
+        return res.status(400).json(
+          paymentErrorResponse('Payment ID requis', 'MISSING_PAYMENT_ID')
+        );
+      }
+
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
+
+      const result = await paymentService.getPayment(paymentId, userId);
+      
+      if (!result.success) {
+        return res.status(404).json(
+          notFoundResponse('Paiement non trouvé', result.error)
+        );
+      }
+
+      res.json(paymentResponse('Paiement récupéré', result.data));
+    } catch (error) {
+      logger.error('Erreur récupération paiement:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
+    }
+  }
+
+  /**
+   * List payments for a user
+   */
+  async listPayments(req, res) {
+    try {
+      const { page = 1, limit = 20, status, eventId, startDate, endDate } = req.query;
+      
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
+
+      const options = {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        status,
+        eventId,
+        startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
+        userId
+      };
+
+      const result = await paymentService.listPayments(options);
+      
+      if (!result.success) {
+        return res.status(400).json(
+          errorResponse(result.error)
+        );
+      }
+
+      res.json(paymentResponse('Paiements récupérés', result.data));
+    } catch (error) {
+      logger.error('Erreur liste paiements:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
+    }
+  }
+
+  /**
+   * Cancel a payment
+   */
+  async cancelPayment(req, res) {
+    try {
+      const { paymentId } = req.params;
+      const { reason } = req.body;
+      
+      if (!paymentId) {
+        return res.status(400).json(
+          paymentErrorResponse('Payment ID requis', 'MISSING_PAYMENT_ID')
+        );
+      }
+
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
+
+      const result = await paymentService.cancelPayment(paymentId, userId, reason);
+      
+      if (!result.success) {
+        return res.status(400).json(
+          paymentErrorResponse(result.error, result.code)
+        );
+      }
+
+      res.json(paymentResponse('Paiement annulé avec succès', result.data));
+    } catch (error) {
+      logger.error('Erreur annulation paiement:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
+    }
+  }
+
+  /**
+   * Retry a failed payment
+   */
+  async retryPayment(req, res) {
+    try {
+      const { paymentId } = req.params;
+      
+      if (!paymentId) {
+        return res.status(400).json(
+          paymentErrorResponse('Payment ID requis', 'MISSING_PAYMENT_ID')
+        );
+      }
+
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
+
+      const result = await paymentService.retryPayment(paymentId, userId);
+      
+      if (!result.success) {
+        return res.status(400).json(
+          paymentErrorResponse(result.error, result.code)
+        );
+      }
+
+      res.json(paymentResponse('Paiement relancé avec succès', result.data));
+    } catch (error) {
+      logger.error('Erreur relance paiement:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 
   /**
    * Get payment statistics
    */
-  async getPaymentStatistics(req, res) {
+  async getPaymentStats(req, res) {
     try {
-      const { startDate, endDate, status } = req.query;
+      const { eventId, period = 'day' } = req.query;
       
-      logger.payment('Getting payment statistics', {
-        userId: req.user?.id,
-        startDate,
-        endDate,
-        status
-      });
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
 
-      const filters = {
-        userId: req.user?.id,
-        startDate,
-        endDate,
-        status
-      };
+      const stats = await paymentService.getPaymentStats(userId, eventId, period);
+      
+      if (!stats.success) {
+        return res.status(400).json(
+          errorResponse(stats.error)
+        );
+      }
 
-      const statistics = await paymentService.getStatistics(filters);
-
-      return res.status(200).json(
-        successResponse('Payment statistics retrieved', statistics)
-      );
-
+      res.json(paymentResponse('Statistiques récupérées', stats.data));
     } catch (error) {
-      logger.error('Payment statistics retrieval failed', {
-        error: error.message,
-        userId: req.user?.id
-      });
-      
-      return res.status(500).json(
-        errorResponse('Payment statistics retrieval failed', error.message)
-      );
-    }
-  }
-
-  /**
-   * Get available payment gateways
-   */
-  async getAvailableGateways(req, res) {
-    try {
-      const { amount, currency = 'EUR', country = 'FR' } = req.query;
-      
-      logger.payment('Getting available gateways', {
-        amount,
-        currency,
-        country
-      });
-
-      // Return static gateways for now (since gateway manager might not be fully implemented)
-      const availableGateways = [
-        {
-          code: 'stripe',
-          name: 'Stripe',
-          isActive: true,
-          supportedCurrencies: ['EUR', 'USD', 'GBP'],
-          supportedCountries: ['FR', 'US', 'GB', 'DE', 'ES', 'IT'],
-          minAmount: 0.50,
-          maxAmount: 100000.00
-        },
-        {
-          code: 'cinetpay',
-          name: 'CinetPay',
-          isActive: true,
-          supportedCurrencies: ['XOF', 'XAF', 'EUR', 'USD'],
-          supportedCountries: ['CI', 'SN', 'ML', 'BF', 'NE', 'TG', 'BJ'],
-          minAmount: 100.00,
-          maxAmount: 1000000.00
-        },
-        {
-          code: 'mtn_momo',
-          name: 'MTN Mobile Money',
-          isActive: true,
-          supportedCurrencies: ['XOF', 'XAF', 'UGX', 'GHS'],
-          supportedCountries: ['CI', 'CM', 'UG', 'GH', 'ZM', 'MW'],
-          minAmount: 100.00,
-          maxAmount: 500000.00
-        }
-      ];
-      
-      // Filter gateways based on criteria
-      const suitableGateways = availableGateways.filter(gateway => {
-        if (amount && (parseFloat(amount) < gateway.minAmount || parseFloat(amount) > gateway.maxAmount)) {
-          return false;
-        }
-        if (currency && !gateway.supportedCurrencies.includes(currency)) {
-          return false;
-        }
-        if (country && !gateway.supportedCountries.includes(country)) {
-          return false;
-        }
-        return gateway.isActive;
-      });
-
-      return res.status(200).json(
-        successResponse('Available gateways retrieved', {
-          gateways: suitableGateways,
-          criteria: { amount, currency, country }
-        })
-      );
-
-    } catch (error) {
-      logger.error('Available gateways retrieval failed', {
-        error: error.message
-      });
-      
-      return res.status(500).json(
-        errorResponse('Available gateways retrieval failed', error.message)
-      );
+      logger.error('Erreur statistiques paiements:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 }

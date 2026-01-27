@@ -1,19 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const paymentsController = require('../controllers/payments.controller');
-const { authenticate, requirePermission } = require('../../../../shared');
-const { injectUserContext } = require('../../../../shared/context-middleware');
-
-// Apply authentication to main payment routes
-router.use(authenticate);
 
 // Legacy routes (maintained for backward compatibility)
-router.post('/process', authenticate, injectUserContext, requirePermission('payments.create'), paymentsController.processPayment);
-router.post('/templates/purchase', authenticate, injectUserContext, requirePermission('payments.create'), paymentsController.purchaseTemplate);
+router.post('/process', paymentsController.processPayment);
+router.post('/templates/purchase', paymentsController.purchaseTemplate);
 router.post('/webhooks/:gateway', paymentsController.handleWebhook);
-router.get('/status/:transactionId', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getPaymentStatus);
-router.get('/statistics', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getPaymentStatistics);
-router.get('/gateways', authenticate, injectUserContext, requirePermission('payments.read'), paymentsController.getAvailableGateways);
+router.get('/status/:transactionId', paymentsController.getPaymentStatus);
+router.get('/statistics', paymentsController.getPaymentStatistics);
+router.get('/gateways', paymentsController.getAvailableGateways);
 
 // Service Info routes
 router.get('/', (req, res) => {
@@ -49,20 +44,26 @@ router.get('/', (req, res) => {
       refunds: {
         stripe: 'POST /api/payments/refunds/stripe',
         paypal: 'POST /api/payments/refunds/paypal',
-        status: 'GET /api/payments/refunds/:id',
+        get: 'GET /api/payments/refunds/:id',
         list: 'GET /api/payments/refunds'
       },
-      invoices: {
-        generate: 'POST /api/payments/invoices/generate',
-        get: 'GET /api/payments/invoices/:id',
-        download: 'GET /api/payments/invoices/:id/download',
-        list: 'GET /api/payments/invoices'
+      wallets: {
+        create: 'POST /api/payments/wallets',
+        get: 'GET /api/payments/wallets/:id',
+        balance: 'GET /api/payments/wallets/:id/balance',
+        transactions: 'GET /api/payments/wallets/:id/transactions'
       },
       paymentMethods: {
-        add: 'POST /api/payments/payment-methods',
+        create: 'POST /api/payments/payment-methods',
+        get: 'GET /api/payments/payment-methods/:id',
         list: 'GET /api/payments/payment-methods',
-        update: 'PUT /api/payments/payment-methods/:id',
         delete: 'DELETE /api/payments/payment-methods/:id'
+      },
+      invoices: {
+        create: 'POST /api/payments/invoices',
+        get: 'GET /api/payments/invoices/:id',
+        list: 'GET /api/payments/invoices',
+        pay: 'POST /api/payments/invoices/:id/pay'
       }
     },
     timestamp: new Date().toISOString()

@@ -8,6 +8,9 @@ const {
 } = require('../../utils/response');
 const logger = require('../../utils/logger');
 
+// Constante par défaut pour l'utilisateur ID
+const DEFAULT_USER_ID = 1;
+
 /**
  * Stripe Controller - Handles Stripe-specific payment operations
  */
@@ -25,12 +28,8 @@ class StripeController {
         metadata = {}
       } = req.body;
 
-      logger.payment('Creating Stripe Payment Intent', {
-        amount,
-        currency,
-        customerEmail,
-        userId: req.user?.id
-      });
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
 
       const result = await stripeService.createPaymentIntent({
         amount,
@@ -39,7 +38,7 @@ class StripeController {
         description,
         metadata: {
           ...metadata,
-          userId: req.user?.id
+          userId
         }
       });
 
@@ -49,56 +48,10 @@ class StripeController {
         );
       }
 
-      return res.status(201).json(
-        createdResponse('Stripe Payment Intent created successfully', result.paymentIntent)
-      );
-
+      res.status(201).json(createdResponse('Payment Intent créé avec succès', result.data));
     } catch (error) {
-      logger.error('Stripe Payment Intent creation failed', {
-        error: error.message,
-        userId: req.user?.id
-      });
-      
-      return res.status(500).json(
-        errorResponse('Stripe Payment Intent creation failed', error.message)
-      );
-    }
-  }
-
-  /**
-   * Get a Stripe Payment Intent
-   */
-  async getPaymentIntent(req, res) {
-    try {
-      const { paymentIntentId } = req.params;
-
-      logger.payment('Getting Stripe Payment Intent', {
-        paymentIntentId,
-        userId: req.user?.id
-      });
-
-      const result = await stripeService.getPaymentIntent(paymentIntentId);
-
-      if (!result.success) {
-        return res.status(404).json(
-          notFoundResponse('Payment Intent not found', result.error)
-        );
-      }
-
-      return res.status(200).json(
-        successResponse('Payment Intent retrieved successfully', result.paymentIntent)
-      );
-
-    } catch (error) {
-      logger.error('Get Stripe Payment Intent failed', {
-        error: error.message,
-        paymentIntentId: req.params.paymentIntentId,
-        userId: req.user?.id
-      });
-      
-      return res.status(500).json(
-        errorResponse('Get Payment Intent failed', error.message)
-      );
+      logger.error('Erreur création Payment Intent:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 
@@ -107,38 +60,96 @@ class StripeController {
    */
   async confirmPaymentIntent(req, res) {
     try {
-      const {
-        paymentIntentId,
-        paymentMethodId
-      } = req.body;
-
-      logger.payment('Confirming Stripe Payment Intent', {
-        paymentIntentId,
-        paymentMethodId,
-        userId: req.user?.id
-      });
-
-      const result = await stripeService.confirmPaymentIntent(paymentIntentId, paymentMethodId);
-
-      if (!result.success) {
+      const { paymentIntentId } = req.params;
+      
+      if (!paymentIntentId) {
         return res.status(400).json(
-          paymentErrorResponse(result.error, 'STRIPE_PAYMENT_CONFIRM_FAILED')
+          paymentErrorResponse('Payment Intent ID requis', 'MISSING_PAYMENT_INTENT_ID')
         );
       }
 
-      return res.status(200).json(
-        successResponse('Payment confirmed successfully', result.paymentIntent)
-      );
-
-    } catch (error) {
-      logger.error('Stripe Payment confirmation failed', {
-        error: error.message,
-        userId: req.user?.id
-      });
+      const result = await stripeService.confirmPaymentIntent(paymentIntentId);
       
-      return res.status(500).json(
-        errorResponse('Payment confirmation failed', error.message)
-      );
+      if (!result.success) {
+        return res.status(400).json(
+          paymentErrorResponse(result.error, 'STRIPE_CONFIRM_FAILED')
+        );
+      }
+
+      res.json(successResponse('Payment Intent confirmé avec succès', result.data));
+    } catch (error) {
+      logger.error('Erreur confirmation Payment Intent:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
+    }
+  }
+
+  /**
+   * Create a Stripe Checkout Session
+   */
+  async createCheckoutSession(req, res) {
+    try {
+      const {
+        amount,
+        currency = 'eur',
+        customerEmail,
+        successUrl,
+        cancelUrl,
+        metadata = {}
+      } = req.body;
+
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
+
+      const result = await stripeService.createCheckoutSession({
+        amount,
+        currency,
+        customerEmail,
+        successUrl,
+        cancelUrl,
+        metadata: {
+          ...metadata,
+          userId
+        }
+      });
+
+      if (!result.success) {
+        return res.status(400).json(
+          paymentErrorResponse(result.error, 'STRIPE_CHECKOUT_FAILED')
+        );
+      }
+
+      res.status(201).json(createdResponse('Checkout Session créée avec succès', result.data));
+    } catch (error) {
+      logger.error('Erreur création Checkout Session:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
+    }
+  }
+
+  /**
+   * Get Payment Intent details
+   */
+  async getPaymentIntent(req, res) {
+    try {
+      const { paymentIntentId } = req.params;
+      
+      if (!paymentIntentId) {
+        return res.status(400).json(
+          paymentErrorResponse('Payment Intent ID requis', 'MISSING_PAYMENT_INTENT_ID')
+        );
+      }
+
+      const result = await stripeService.getPaymentIntent(paymentIntentId);
+      
+      if (!result.success) {
+        return res.status(404).json(
+          notFoundResponse('Payment Intent non trouvé', result.error)
+        );
+      }
+
+      res.json(successResponse('Payment Intent récupéré', result.data));
+    } catch (error) {
+      logger.error('Erreur récupération Payment Intent:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 
@@ -150,163 +161,156 @@ class StripeController {
       const {
         email,
         name,
-        phone
+        phone,
+        metadata = {}
       } = req.body;
 
-      logger.payment('Creating Stripe Customer', {
-        email,
-        name,
-        userId: req.user?.id
-      });
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
 
       const result = await stripeService.createCustomer({
         email,
         name,
         phone,
         metadata: {
-          userId: req.user?.id
+          ...metadata,
+          userId
         }
       });
 
       if (!result.success) {
         return res.status(400).json(
-          paymentErrorResponse(result.error, 'STRIPE_CUSTOMER_CREATE_FAILED')
+          paymentErrorResponse(result.error, 'STRIPE_CUSTOMER_FAILED')
         );
       }
 
-      return res.status(201).json(
-        createdResponse('Stripe Customer created successfully', result.customer)
-      );
-
+      res.status(201).json(createdResponse('Customer créé avec succès', result.data));
     } catch (error) {
-      logger.error('Stripe Customer creation failed', {
-        error: error.message,
-        userId: req.user?.id
-      });
-      
-      return res.status(500).json(
-        errorResponse('Customer creation failed', error.message)
-      );
+      logger.error('Erreur création Customer:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 
   /**
-   * Get a Stripe Customer
+   * Get Customer details
    */
   async getCustomer(req, res) {
     try {
       const { customerId } = req.params;
-
-      logger.payment('Getting Stripe Customer', {
-        customerId,
-        userId: req.user?.id
-      });
-
-      const result = await stripeService.getCustomer(customerId);
-
-      if (!result.success) {
-        return res.status(404).json(
-          notFoundResponse('Customer not found', result.error)
+      
+      if (!customerId) {
+        return res.status(400).json(
+          paymentErrorResponse('Customer ID requis', 'MISSING_CUSTOMER_ID')
         );
       }
 
-      return res.status(200).json(
-        successResponse('Customer retrieved successfully', result.customer)
-      );
-
-    } catch (error) {
-      logger.error('Get Stripe Customer failed', {
-        error: error.message,
-        customerId: req.params.customerId,
-        userId: req.user?.id
-      });
+      const result = await stripeService.getCustomer(customerId);
       
-      return res.status(500).json(
-        errorResponse('Get Customer failed', error.message)
-      );
+      if (!result.success) {
+        return res.status(404).json(
+          notFoundResponse('Customer non trouvé', result.error)
+        );
+      }
+
+      res.json(successResponse('Customer récupéré', result.data));
+    } catch (error) {
+      logger.error('Erreur récupération Customer:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 
   /**
-   * Create a Stripe Payment Method
+   * Create a payment method
    */
   async createPaymentMethod(req, res) {
     try {
       const {
-        customerId,
-        paymentMethodId,
-        isDefault = false
+        type,
+        card,
+        billingDetails,
+        metadata = {}
       } = req.body;
 
-      logger.payment('Creating Stripe Payment Method', {
-        customerId,
-        paymentMethodId,
-        isDefault,
-        userId: req.user?.id
-      });
+      // Utilisation de l'utilisateur par défaut
+      const userId = DEFAULT_USER_ID;
 
       const result = await stripeService.createPaymentMethod({
-        customerId,
-        paymentMethodId,
-        isDefault
+        type,
+        card,
+        billingDetails,
+        metadata: {
+          ...metadata,
+          userId
+        }
       });
 
       if (!result.success) {
         return res.status(400).json(
-          paymentErrorResponse(result.error, 'STRIPE_PAYMENT_METHOD_CREATE_FAILED')
+          paymentErrorResponse(result.error, 'STRIPE_PAYMENT_METHOD_FAILED')
         );
       }
 
-      return res.status(201).json(
-        createdResponse('Payment Method created successfully', result.paymentMethod)
-      );
-
+      res.status(201).json(createdResponse('Payment Method créé avec succès', result.data));
     } catch (error) {
-      logger.error('Stripe Payment Method creation failed', {
-        error: error.message,
-        userId: req.user?.id
-      });
-      
-      return res.status(500).json(
-        errorResponse('Payment Method creation failed', error.message)
-      );
+      logger.error('Erreur création Payment Method:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 
   /**
-   * Get Customer Payment Methods
+   * Attach payment method to customer
    */
-  async getCustomerPaymentMethods(req, res) {
+  async attachPaymentMethod(req, res) {
     try {
-      const { customerId } = req.params;
-
-      logger.payment('Getting Stripe Customer Payment Methods', {
-        customerId,
-        userId: req.user?.id
-      });
-
-      const result = await stripeService.getCustomerPaymentMethods(customerId);
-
-      if (!result.success) {
-        return res.status(404).json(
-          notFoundResponse('Customer not found', result.error)
+      const { paymentMethodId, customerId } = req.body;
+      
+      if (!paymentMethodId || !customerId) {
+        return res.status(400).json(
+          paymentErrorResponse('Payment Method ID et Customer ID requis', 'MISSING_REQUIRED_FIELDS')
         );
       }
 
-      return res.status(200).json(
-        successResponse('Payment Methods retrieved successfully', result.paymentMethods)
-      );
-
-    } catch (error) {
-      logger.error('Get Stripe Payment Methods failed', {
-        error: error.message,
-        customerId: req.params.customerId,
-        userId: req.user?.id
-      });
+      const result = await stripeService.attachPaymentMethod(paymentMethodId, customerId);
       
-      return res.status(500).json(
-        errorResponse('Get Payment Methods failed', error.message)
-      );
+      if (!result.success) {
+        return res.status(400).json(
+          paymentErrorResponse(result.error, 'STRIPE_ATTACH_FAILED')
+        );
+      }
+
+      res.json(successResponse('Payment Method attaché avec succès', result.data));
+    } catch (error) {
+      logger.error('Erreur attach Payment Method:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
+    }
+  }
+
+  /**
+   * Process webhook from Stripe
+   */
+  async processWebhook(req, res) {
+    try {
+      const signature = req.headers['stripe-signature'];
+      const payload = req.body;
+      
+      if (!signature) {
+        return res.status(400).json(
+          paymentErrorResponse('Signature Stripe manquante', 'MISSING_STRIPE_SIGNATURE')
+        );
+      }
+
+      const result = await stripeService.processWebhook(payload, signature);
+      
+      if (!result.success) {
+        return res.status(400).json(
+          paymentErrorResponse(result.error, 'STRIPE_WEBHOOK_FAILED')
+        );
+      }
+
+      res.json(successResponse('Webhook traité avec succès', result.data));
+    } catch (error) {
+      logger.error('Erreur traitement webhook Stripe:', error);
+      res.status(500).json(errorResponse('Erreur interne du serveur'));
     }
   }
 }

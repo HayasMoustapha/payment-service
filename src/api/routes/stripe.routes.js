@@ -1,8 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const stripeController = require('../controllers/stripe.controller');
-const { authenticate, requirePermission } = require('../../../../shared');
-const { injectUserContext } = require('../../../../shared/context-middleware');
 const { validate } = require('../../middleware/validation');
 const Joi = require('joi');
 
@@ -32,49 +30,48 @@ const confirmPaymentSchema = Joi.object({
   paymentMethodId: Joi.string().required()
 });
 
-// Apply authentication to all routes
-router.use(authenticate);
-
 // Stripe Payment Intents
 router.post('/payment-intent', 
-  requirePermission('payments.create'),
   validate(createPaymentIntentSchema),
   stripeController.createPaymentIntent
 );
 
 router.get('/payment-intent/:paymentIntentId',
-  requirePermission('payments.read'),
   stripeController.getPaymentIntent
 );
 
 router.post('/confirm',
-  requirePermission('payments.update'),
   validate(confirmPaymentSchema),
   stripeController.confirmPaymentIntent
 );
 
+// Stripe Checkout Sessions
+router.post('/checkout-session',
+  stripeController.createCheckoutSession
+);
+
 // Stripe Customers
 router.post('/customers',
-  requirePermission('customers.create'),
   validate(createCustomerSchema),
   stripeController.createCustomer
 );
 
 router.get('/customers/:customerId',
-  requirePermission('customers.read'),
   stripeController.getCustomer
 );
 
 // Stripe Payment Methods
 router.post('/payment-methods',
-  requirePermission('payment-methods.create'),
-  validate(createPaymentMethodSchema),
   stripeController.createPaymentMethod
 );
 
-router.get('/customers/:customerId/payment-methods',
-  requirePermission('payment-methods.read'),
-  stripeController.getCustomerPaymentMethods
+router.post('/payment-methods/attach',
+  stripeController.attachPaymentMethod
+);
+
+// Webhook handling
+router.post('/webhook',
+  stripeController.processWebhook
 );
 
 module.exports = router;
