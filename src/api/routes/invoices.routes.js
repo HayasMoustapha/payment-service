@@ -31,18 +31,12 @@ router.post('/generate',
 // Get Invoice
 router.get('/:invoiceId',
   SecurityMiddleware.withPermissions('invoices.read'),
-  ValidationMiddleware.validateParams({
-    invoiceId: Joi.string().required()
-  }),
   invoicesController.getInvoice
 );
 
 // Download Invoice PDF
 router.get('/:invoiceId/download',
   SecurityMiddleware.withPermissions('invoices.read'),
-  ValidationMiddleware.validateParams({
-    invoiceId: Joi.string().required()
-  }),
   invoicesController.downloadInvoicePdf
 );
 

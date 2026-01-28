@@ -26,6 +26,7 @@ router.post('/templates/purchase',
 );
 
 router.post('/webhooks/:gateway', 
+  SecurityMiddleware.withPermissions('payments.webhooks'),
   ValidationMiddleware.validate({
     params: {
       gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required()
@@ -36,18 +37,11 @@ router.post('/webhooks/:gateway',
 
 router.get('/status/:transactionId', 
   SecurityMiddleware.withPermissions('payments.read'),
-  ValidationMiddleware.validateParams({
-    transactionId: Joi.string().required()
-  }),
   paymentsController.getPaymentStatus
 );
 
 router.get('/statistics', 
   SecurityMiddleware.withPermissions('payments.read'),
-  ValidationMiddleware.validateQuery({
-    period: Joi.string().valid('day', 'week', 'month', 'year').default('month'),
-    gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').optional()
-  }),
   paymentsController.getPaymentStatistics
 );
 
@@ -57,7 +51,7 @@ router.get('/gateways',
 );
 
 // Service Info routes
-router.get('/', (req, res) => {
+router.get('/', SecurityMiddleware.withPermissions('payments.info.read'), (req, res) => {
   res.json({
     service: 'Payment API',
     version: '1.0.0',

@@ -42,9 +42,6 @@ router.post('/orders',
 
 router.get('/orders/:orderId', 
   SecurityMiddleware.withPermissions('payments.read'),
-  ValidationMiddleware.validateParams({
-    orderId: Joi.string().required()
-  }),
   paypalController.getOrder
 );
 

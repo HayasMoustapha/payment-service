@@ -58,9 +58,6 @@ router.post('/payment-intent',
 
 router.get('/payment-intent/:paymentIntentId',
   SecurityMiddleware.withPermissions('payments.read'),
-  ValidationMiddleware.validateParams({
-    paymentIntentId: Joi.string().required()
-  }),
   stripeController.getPaymentIntent
 );
 
@@ -79,9 +76,6 @@ router.post('/customers',
 
 router.get('/customers/:customerId',
   SecurityMiddleware.withPermissions('customers.read'),
-  ValidationMiddleware.validateParams({
-    customerId: Joi.string().required()
-  }),
   stripeController.getCustomer
 );
 
@@ -94,9 +88,6 @@ router.post('/payment-methods',
 
 router.get('/customers/:customerId/payment-methods',
   SecurityMiddleware.withPermissions('payment-methods.read'),
-  ValidationMiddleware.validateParams({
-    customerId: Joi.string().required()
-  }),
   stripeController.getCustomerPaymentMethods
 );
 

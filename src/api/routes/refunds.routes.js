@@ -38,9 +38,6 @@ router.post('/stripe',
 
 router.get('/stripe/:refundId', 
   SecurityMiddleware.withPermissions('refunds.read'),
-  ValidationMiddleware.validateParams({
-    refundId: Joi.string().required()
-  }),
   refundsController.getRefundStatus
 );
 
@@ -54,20 +51,12 @@ router.post('/paypal',
 // Generic refund status
 router.get('/status/:refundId', 
   SecurityMiddleware.withPermissions('refunds.read'),
-  ValidationMiddleware.validateParams({
-    refundId: Joi.string().required()
-  }),
   refundsController.getRefundStatus
 );
 
 // List refunds
 router.get('/', 
   SecurityMiddleware.withPermissions('refunds.read'),
-  ValidationMiddleware.validateQuery({
-    page: Joi.number().integer().min(1).default(1),
-    limit: Joi.number().integer().min(1).max(100).default(20),
-    gateway: Joi.string().valid('stripe', 'paypal').optional()
-  }),
   refundsController.listRefunds
 );
 

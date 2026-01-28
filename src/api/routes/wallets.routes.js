@@ -86,9 +86,6 @@ router.get('/commissions/projections',
 
 router.get('/commissions/projections/:projectionId', 
   SecurityMiddleware.withPermissions('commissions.read'),
-  ValidationMiddleware.validateParams({
-    projectionId: Joi.string().required()
-  }),
   walletsController.getCommissionProjection
 );
 
