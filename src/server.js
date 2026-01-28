@@ -9,6 +9,10 @@ const mongoSanitize = require('express-mongo-sanitize');
 const morgan = require('morgan');
 const rawBody = require('raw-body');
 
+// CONFIGURATION JWT UNIFIÉ - ÉTAPE CRUCIALE
+const UnifiedJWTSecret = require('../../shared/config/unified-jwt-secret');
+UnifiedJWTSecret.configureService('payment-service');
+
 const logger = require('./utils/logger');
 const healthRoutes = require('./health/health.routes');
 const paymentsRoutes = require('./api/routes/payments.routes');
@@ -144,6 +148,9 @@ class PaymentServer {
    * Configure les routes
    */
   setupRoutes() {
+    // Middleware d'authentification robuste pour les routes protégées
+    const RobustAuthMiddleware = require('../../shared/middlewares/robust-auth-middleware');
+    
     // Route racine
     this.app.get('/', (req, res) => {
       res.json({
@@ -161,10 +168,11 @@ class PaymentServer {
       });
     });
 
-    // Routes de santé
+    // Routes de santé (publiques)
     this.app.use('/health', healthRoutes);
 
-    // Routes API principales
+    // Routes API protégées
+    this.app.use('/api', RobustAuthMiddleware.authenticate());
     this.app.use('/api/payments', paymentsRoutes);
     
     // Nouvelles routes structurées selon Postman
