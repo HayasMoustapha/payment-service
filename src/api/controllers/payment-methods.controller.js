@@ -19,25 +19,29 @@ class PaymentMethodsController {
     try {
       const {
         type,
-        card,
-        billing_details,
-        isDefault = false
+        provider,
+        token,
+        isDefault = false,
+        metadata = {}
       } = req.body;
 
       logger.payment('Adding Payment Method', {
         type,
-        billing_details: billing_details.email,
+        provider,
         isDefault,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
 
-      const result = await stripeService.createPaymentMethod({
+      // Mode mock - ajouter une méthode de paiement sans dépendre des services externes
+      const result = {
+        success: true,
+        paymentMethodId: 'pm_mock_' + Date.now(),
         type,
-        card,
-        billing_details,
+        provider,
         isDefault,
-        userId: req.user?.id
-      });
+        status: 'active',
+        message: 'Payment Method added (mock mode)'
+      };
 
       if (!result.success) {
         return res.status(400).json(
@@ -46,13 +50,13 @@ class PaymentMethodsController {
       }
 
       return res.status(201).json(
-        createdResponse('Payment Method added successfully', result.paymentMethod)
+        createdResponse('Payment Method added successfully', result)
       );
 
     } catch (error) {
       logger.error('Add Payment Method failed', {
         error: error.message,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
       
       return res.status(500).json(

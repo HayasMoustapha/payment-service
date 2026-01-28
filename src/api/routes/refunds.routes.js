@@ -25,28 +25,28 @@ const createPayPalRefundSchema = Joi.object({
 
 // Stripe refunds
 router.post('/stripe', 
-  ValidationMiddleware.validate({ body: createStripeRefundSchema }),
+  ValidationMiddleware.validate(createStripeRefundSchema),
   refundsController.createStripeRefund
 );
 
 router.get('/stripe/:refundId', 
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     refundId: Joi.string().required()
-  }),
+  }), 'params'),
   refundsController.getRefundStatus
 );
 
 // PayPal refunds
 router.post('/paypal', 
-  ValidationMiddleware.validate({ body: createPayPalRefundSchema }),
+  ValidationMiddleware.validate(createPayPalRefundSchema),
   refundsController.createPayPalRefund
 );
 
 // Generic refund status
 router.get('/status/:refundId', 
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     refundId: Joi.string().required()
-  }),
+  }), 'params'),
   refundsController.getRefundStatus
 );
 

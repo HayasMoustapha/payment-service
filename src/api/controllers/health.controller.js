@@ -1,6 +1,6 @@
 const stripeService = require('../../core/stripe/stripe.service');
 const paypalService = require('../../core/paypal/paypal.service');
-const { database } = require('../../config');
+const { query } = require("../../utils/database-wrapper");
 const { successResponse, errorResponse } = require('../../utils/response');
 const logger = require('../../utils/logger');
 
@@ -42,7 +42,7 @@ class HealthController {
 
       // Check database
       try {
-        await database.query('SELECT 1');
+        await query('SELECT 1');
         health.components.database = { status: 'healthy' };
       } catch (error) {
         health.components.database = { status: 'unhealthy', error: error.message };
@@ -272,7 +272,7 @@ class HealthController {
   async checkReadiness() {
     try {
       // Check database connection
-      await database.query('SELECT 1');
+      await query('SELECT 1');
       
       // Check essential services
       await stripeService.healthCheck();

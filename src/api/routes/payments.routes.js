@@ -1,58 +1,96 @@
-const express = require('express');
-const Joi = require('joi');
-const router = express.Router();
-const paymentsController = require('../controllers/payments.controller');
-const { ValidationMiddleware } = require('../../../../shared');
-const paymentErrorHandler = require('../../error/payment.errorHandler');
+// Importation des modules nécessaires pour les routes de paiements
+const express = require('express'); // Framework web Node.js
+const Joi = require('joi'); // Bibliothèque de validation de schémas
+const router = express.Router(); // Crée un routeur Express
+const paymentsController = require('../controllers/payments.controller'); // Contrôleur des paiements
+const { ValidationMiddleware } = require('../../../../shared'); // Middleware de validation
+const paymentErrorHandler = require('../../error/payment.errorHandler'); // Gestionnaire d'erreurs
 
-// Apply error handler for all routes
+// APPLICATION DU GESTIONNAIRE D'ERREURS : Appliqué à toutes les routes de paiement
+// Cela permet de capturer les erreurs spécifiques aux paiements
 router.use(paymentErrorHandler);
 
-// Legacy routes (maintained for backward compatibility)
+// ROUTES LEGACY : Anciennes routes maintenues pour compatibilité ascendante
+// Ces routes assurent que les anciens clients continuent de fonctionner
+
+/**
+ * ROUTE 1 : Traiter un paiement
+ * Méthode : POST
+ * URL : /api/payments/payments/process
+ * Description : Crée une nouvelle transaction de paiement
+ */
 router.post('/process', 
-  ValidationMiddleware.validate({
-    body: Joi.object({
-      amount: Joi.number().required(),
-      currency: Joi.string().default('eur'),
-      gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required(),
-      customerEmail: Joi.string().email().required(),
-      description: Joi.string().required()
-    })
-  }),
-  paymentsController.processPayment
+  // MIDDLEWARE DE VALIDATION : Vérifie que les données sont valides avant d'appeler le contrôleur
+  ValidationMiddleware.validate(Joi.object({
+    amount: Joi.number().required(), // Montant requis (nombre)
+    currency: Joi.string().default('eur'), // Devise, 'eur' par défaut
+    gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required(), // Passerelle requise
+    customerEmail: Joi.string().email().required(), // Email valide requis
+    description: Joi.string().required() // Description requise
+  })),
+  paymentsController.processPayment // Contrôleur qui traite le paiement
 );
 
+/**
+ * ROUTE 2 : Acheter un template
+ * Méthode : POST
+ * URL : /api/payments/payments/templates/purchase
+ * Description : Achète un template (design, modèle, etc.)
+ */
 router.post('/templates/purchase', 
-  ValidationMiddleware.validate({
-    body: Joi.object({
-      templateId: Joi.string().required(),
-      customerEmail: Joi.string().email().required(),
-      paymentMethod: Joi.string().required()
-    })
-  }),
-  paymentsController.purchaseTemplate
+  // VALIDATION : Vérifie les données d'achat de template
+  ValidationMiddleware.validate(Joi.object({
+    templateId: Joi.string().required(), // ID du template requis
+    customerEmail: Joi.string().email().required(), // Email valide requis
+    paymentMethod: Joi.string().required() // Méthode de paiement requise
+  })),
+  paymentsController.purchaseTemplate // Contrôleur pour l'achat de template
 );
 
+/**
+ * ROUTE 3 : Webhooks des passerelles
+ * Méthode : POST
+ * URL : /api/payments/payments/webhooks/:gateway
+ * Description : Reçoit les notifications des passerelles (Stripe, PayPal)
+ */
 router.post('/webhooks/:gateway', 
-  ValidationMiddleware.validate({
-    params: {
-      gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required()
-    }
-  }),
-  paymentsController.handleWebhook
+  // VALIDATION : Vérifie le paramètre de la passerelle
+  ValidationMiddleware.validate(Joi.object({
+    gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required() // Passerelle valide requise
+  }), 'params'), // Spécifie que la validation s'applique aux paramètres d'URL
+  paymentsController.handleWebhook // Contrôleur pour traiter les webhooks
 );
 
+/**
+ * ROUTE 4 : Statut d'une transaction
+ * Méthode : GET
+ * URL : /api/payments/payments/status/:transactionId
+ * Description : Récupère le statut d'une transaction spécifique
+ */
 router.get('/status/:transactionId', 
-  ValidationMiddleware.validateParams({
-    transactionId: Joi.string().required()
-  }),
-  paymentsController.getPaymentStatus
+  // VALIDATION : Vérifie l'ID de transaction
+  ValidationMiddleware.validate(Joi.object({
+    transactionId: Joi.string().required() // ID de transaction requis
+  }), 'params'), // Validation sur les paramètres d'URL
+  paymentsController.getPaymentStatus // Contrôleur pour obtenir le statut
 );
 
+/**
+ * ROUTE 5 : Statistiques des paiements
+ * Méthode : GET
+ * URL : /api/payments/payments/statistics
+ * Description : Récupère les statistiques des paiements
+ */
 router.get('/statistics', 
-  paymentsController.getPaymentStatistics
+  paymentsController.getPaymentStatistics // Pas de validation, contrôleur direct
 );
 
+/**
+ * ROUTE 6 : Passerelles disponibles
+ * Méthode : GET
+ * URL : /api/payments/payments/gateways
+ * Description : Liste les passerelles de paiement disponibles
+ */
 router.get('/gateways', 
   paymentsController.getAvailableGateways
 );

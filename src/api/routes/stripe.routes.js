@@ -36,45 +36,45 @@ const confirmPaymentSchema = Joi.object({
 
 // Stripe Payment Intents
 router.post('/payment-intent', 
-  ValidationMiddleware.validate({ body: createPaymentIntentSchema }),
+  ValidationMiddleware.validate(createPaymentIntentSchema),
   stripeController.createPaymentIntent
 );
 
 router.get('/payment-intent/:paymentIntentId',
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     paymentIntentId: Joi.string().required()
-  }),
+  }), 'params'),
   stripeController.getPaymentIntent
 );
 
 router.post('/confirm',
-  ValidationMiddleware.validate({ body: confirmPaymentSchema }),
+  ValidationMiddleware.validate(confirmPaymentSchema),
   stripeController.confirmPaymentIntent
 );
 
 // Stripe Customers
 router.post('/customers',
-  ValidationMiddleware.validate({ body: createCustomerSchema }),
+  ValidationMiddleware.validate(createCustomerSchema),
   stripeController.createCustomer
 );
 
 router.get('/customers/:customerId',
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     customerId: Joi.string().required()
-  }),
+  }), 'params'),
   stripeController.getCustomer
 );
 
 // Stripe Payment Methods
 router.post('/payment-methods',
-  ValidationMiddleware.validate({ body: createPaymentMethodSchema }),
+  ValidationMiddleware.validate(createPaymentMethodSchema),
   stripeController.createPaymentMethod
 );
 
 router.get('/customers/:customerId/payment-methods',
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     customerId: Joi.string().required()
-  }),
+  }), 'params'),
   stripeController.getCustomerPaymentMethods
 );
 

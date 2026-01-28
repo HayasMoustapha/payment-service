@@ -1,5 +1,5 @@
 const BaseGateway = require('./base.gateway');
-const { database } = require('../../config');
+const { query } = require("../../utils/database-wrapper");
 
 /**
  * Gateway Manager - Manages multiple payment providers
@@ -50,7 +50,7 @@ class GatewayManager {
       ORDER BY created_at ASC
     `;
     
-    const result = await database.query(query);
+    const result = await query(query);
     return result.rows;
   }
 

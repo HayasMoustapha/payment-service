@@ -1,4 +1,4 @@
-const { database } = require('../../config');
+const { query } = require("../../utils/database-wrapper");
 
 /**
  * Wallet Service - Manages user wallets and transactions
@@ -35,7 +35,7 @@ class WalletService {
         WHERE user_id = $1 AND user_type = $2 AND is_active = true
       `;
       
-      const getResult = await database.query(getQuery, [userId, userType]);
+      const getResult = await query(getQuery, [userId, userType]);
       
       if (getResult.rows.length > 0) {
         return {
@@ -51,7 +51,7 @@ class WalletService {
         RETURNING *
       `;
 
-      const createResult = await database.query(createQuery, [userId, userType]);
+      const createResult = await query(createQuery, [userId, userType]);
       
       return {
         success: true,
@@ -83,7 +83,7 @@ class WalletService {
         WHERE user_id = $1 AND user_type = $2 AND is_active = true
       `;
       
-      const result = await database.query(query, [userId, userType]);
+      const result = await query(query, [userId, userType]);
       
       if (result.rows.length === 0) {
         return {
@@ -142,7 +142,7 @@ class WalletService {
       const balanceAfter = balanceBefore + amount;
 
       // Start transaction
-      await database.query('BEGIN');
+      await query('BEGIN');
 
       try {
         // Update wallet balance
@@ -151,7 +151,7 @@ class WalletService {
           SET balance = $1, updated_at = NOW()
           WHERE id = $2
         `;
-        await database.query(updateQuery, [balanceAfter, wallet.id]);
+        await query(updateQuery, [balanceAfter, wallet.id]);
 
         // Create wallet transaction
         const transactionQuery = `
@@ -165,7 +165,7 @@ class WalletService {
         `;
 
         const description = this.generateTransactionDescription('credit', referenceType, metadata);
-        const transactionResult = await database.query(transactionQuery, [
+        const transactionResult = await query(transactionQuery, [
           wallet.id,
           amount,
           balanceBefore,
@@ -176,7 +176,7 @@ class WalletService {
           JSON.stringify(metadata)
         ]);
 
-        await database.query('COMMIT');
+        await query('COMMIT');
 
         return {
           success: true,
@@ -193,7 +193,7 @@ class WalletService {
         };
 
       } catch (error) {
-        await database.query('ROLLBACK');
+        await query('ROLLBACK');
         throw error;
       }
 
@@ -250,7 +250,7 @@ class WalletService {
       const balanceAfter = balanceBefore - amount;
 
       // Start transaction
-      await database.query('BEGIN');
+      await query('BEGIN');
 
       try {
         // Update wallet balance
@@ -259,7 +259,7 @@ class WalletService {
           SET balance = $1, updated_at = NOW()
           WHERE id = $2
         `;
-        await database.query(updateQuery, [balanceAfter, wallet.id]);
+        await query(updateQuery, [balanceAfter, wallet.id]);
 
         // Create wallet transaction
         const transactionQuery = `
@@ -273,7 +273,7 @@ class WalletService {
         `;
 
         const description = this.generateTransactionDescription('debit', referenceType, metadata);
-        const transactionResult = await database.query(transactionQuery, [
+        const transactionResult = await query(transactionQuery, [
           wallet.id,
           amount,
           balanceBefore,
@@ -284,7 +284,7 @@ class WalletService {
           JSON.stringify(metadata)
         ]);
 
-        await database.query('COMMIT');
+        await query('COMMIT');
 
         return {
           success: true,
@@ -301,7 +301,7 @@ class WalletService {
         };
 
       } catch (error) {
-        await database.query('ROLLBACK');
+        await query('ROLLBACK');
         throw error;
       }
 
@@ -384,7 +384,7 @@ class WalletService {
       query += ` ORDER BY created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
       values.push(limit, offset);
 
-      const result = await database.query(query, values);
+      const result = await query(query, values);
 
       // Get total count
       let countQuery = `
@@ -420,7 +420,7 @@ class WalletService {
         countValues.push(endDate);
       }
 
-      const countResult = await database.query(countQuery, countValues);
+      const countResult = await query(countQuery, countValues);
       const total = parseInt(countResult.rows[0].total);
 
       return {
@@ -508,7 +508,7 @@ class WalletService {
 
       query += ` GROUP BY transaction_type`;
 
-      const result = await database.query(query, values);
+      const result = await query(query, values);
 
       // Calculate statistics
       let totalCredits = 0;
@@ -606,7 +606,7 @@ class WalletService {
       }
 
       // Start transaction
-      await database.query('BEGIN');
+      await query('BEGIN');
 
       try {
         // Debit source wallet
@@ -625,7 +625,7 @@ class WalletService {
         );
 
         if (!debitResult.success) {
-          await database.query('ROLLBACK');
+          await query('ROLLBACK');
           return debitResult;
         }
 
@@ -645,11 +645,11 @@ class WalletService {
         );
 
         if (!creditResult.success) {
-          await database.query('ROLLBACK');
+          await query('ROLLBACK');
           return creditResult;
         }
 
-        await database.query('COMMIT');
+        await query('COMMIT');
 
         return {
           success: true,
@@ -669,7 +669,7 @@ class WalletService {
         };
 
       } catch (error) {
-        await database.query('ROLLBACK');
+        await query('ROLLBACK');
         throw error;
       }
 

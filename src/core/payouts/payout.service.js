@@ -1,7 +1,7 @@
 const gatewayManager = require('../providers/gateway.manager');
 const walletService = require('../wallets/wallet.service');
 const commissionService = require('../commissions/commission.service');
-const { database } = require('../../config');
+const { query } = require("../../utils/database-wrapper");
 
 /**
  * Payout Service - Manages outgoing payments to users
@@ -90,7 +90,7 @@ class PayoutService {
       }
 
       // Start transaction
-      await database.query('BEGIN');
+      await query('BEGIN');
 
       try {
         // Debit wallet for total amount (payout + fee)
@@ -109,7 +109,7 @@ class PayoutService {
         );
 
         if (!debitResult.success) {
-          await database.query('ROLLBACK');
+          await query('ROLLBACK');
           return debitResult;
         }
 
@@ -126,7 +126,7 @@ class PayoutService {
           RETURNING *
         `;
 
-        const withdrawalResult = await database.query(withdrawalQuery, [
+        const withdrawalResult = await query(withdrawalQuery, [
           userId,
           userType,
           amount,
@@ -139,7 +139,7 @@ class PayoutService {
           })
         ]);
 
-        await database.query('COMMIT');
+        await query('COMMIT');
 
         // Process payout asynchronously
         this.processPayout(withdrawalResult.rows[0].id).catch(error => {
@@ -158,7 +158,7 @@ class PayoutService {
         };
 
       } catch (error) {
-        await database.query('ROLLBACK');
+        await query('ROLLBACK');
         throw error;
       }
 
@@ -190,7 +190,7 @@ class PayoutService {
         WHERE w.id = $1
       `;
       
-      const withdrawalResult = await database.query(withdrawalQuery, [withdrawalId]);
+      const withdrawalResult = await query(withdrawalQuery, [withdrawalId]);
       
       if (withdrawalResult.rows.length === 0) {
         return {
@@ -314,7 +314,7 @@ class PayoutService {
         WHERE w.id = $1
       `;
       
-      const result = await database.query(query, [withdrawalId]);
+      const result = await query(query, [withdrawalId]);
       
       if (result.rows.length === 0) {
         return {
@@ -418,7 +418,7 @@ class PayoutService {
       query += ` ORDER BY w.requested_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
       values.push(limit, offset);
 
-      const result = await database.query(query, values);
+      const result = await query(query, values);
 
       // Get total count
       let countQuery = `
@@ -449,7 +449,7 @@ class PayoutService {
         countValues.push(endDate);
       }
 
-      const countResult = await database.query(countQuery, countValues);
+      const countResult = await query(countQuery, countValues);
       const total = parseInt(countResult.rows[0].total);
 
       return {
@@ -514,7 +514,7 @@ class PayoutService {
         WHERE user_id = $1 AND status IN ('pending', 'processing', 'completed')
       `;
 
-      const result = await database.query(query, [userId, dayStart, monthStart]);
+      const result = await query(query, [userId, dayStart, monthStart]);
       const usage = result.rows[0];
 
       const dailyLimitCheck = usage.daily_total + amount <= this.payoutLimits.daily;
@@ -613,7 +613,7 @@ class PayoutService {
       WHERE id = $4
     `;
 
-    await database.query(query, [status, reason, JSON.stringify(metadata), withdrawalId]);
+    await query(query, [status, reason, JSON.stringify(metadata), withdrawalId]);
   }
 
   /**

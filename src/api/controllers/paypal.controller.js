@@ -28,7 +28,7 @@ class PayPalController {
       logger.payment('Creating PayPal Order', {
         amount,
         description,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
 
       const result = await paypalService.createOrder({
@@ -38,7 +38,7 @@ class PayPalController {
         cancelUrl,
         metadata: {
           ...metadata,
-          userId: req.user?.id
+          userId: req.body.userId || 'anonymous'
         }
       });
 
@@ -55,7 +55,7 @@ class PayPalController {
     } catch (error) {
       logger.error('PayPal Order creation failed', {
         error: error.message,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
       
       return res.status(500).json(
@@ -70,10 +70,11 @@ class PayPalController {
   async getOrder(req, res) {
     try {
       const { orderId } = req.params;
+      const { userId } = req.query;
 
       logger.payment('Getting PayPal Order', {
         orderId,
-        userId: req.user?.id
+        userId: userId || 'anonymous'
       });
 
       const result = await paypalService.getOrder(orderId);
@@ -92,7 +93,7 @@ class PayPalController {
       logger.error('Get PayPal Order failed', {
         error: error.message,
         orderId: req.params.orderId,
-        userId: req.user?.id
+        userId: req.query?.userId || 'anonymous'
       });
       
       return res.status(500).json(
@@ -110,7 +111,7 @@ class PayPalController {
 
       logger.payment('Capturing PayPal Order', {
         orderId,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
 
       const result = await paypalService.captureOrder(orderId);
@@ -129,7 +130,7 @@ class PayPalController {
       logger.error('PayPal Order capture failed', {
         error: error.message,
         orderId: req.params.orderId,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
       
       return res.status(500).json(
@@ -153,7 +154,7 @@ class PayPalController {
       logger.payment('Creating PayPal Invoice', {
         amount,
         description,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
 
       const result = await paypalService.createInvoice({
@@ -162,7 +163,7 @@ class PayPalController {
         merchantInfo,
         billingInfo,
         metadata: {
-          userId: req.user?.id
+          userId: req.body.userId || 'anonymous'
         }
       });
 
@@ -179,7 +180,7 @@ class PayPalController {
     } catch (error) {
       logger.error('PayPal Invoice creation failed', {
         error: error.message,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
       
       return res.status(500).json(
@@ -197,7 +198,7 @@ class PayPalController {
 
       logger.payment('Getting PayPal Invoice', {
         invoiceId,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
 
       const result = await paypalService.getInvoice(invoiceId);
@@ -216,7 +217,7 @@ class PayPalController {
       logger.error('Get PayPal Invoice failed', {
         error: error.message,
         invoiceId: req.params.invoiceId,
-        userId: req.user?.id
+        userId: req.body.userId || 'anonymous'
       });
       
       return res.status(500).json(

@@ -429,7 +429,7 @@ async function checkDatabaseConnection() {
   try {
     // Importer la configuration de la base de données
     // const database = require('../config/database');
-    // await database.query('SELECT 1');
+    // await query('SELECT 1');
     // return true;
     
     // Placeholder pour l'instant

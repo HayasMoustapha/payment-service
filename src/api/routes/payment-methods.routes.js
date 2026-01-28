@@ -29,24 +29,24 @@ router.get('/',
 
 // Add payment method
 router.post('/', 
-  ValidationMiddleware.validate({ body: addPaymentMethodSchema }),
+  ValidationMiddleware.validate(addPaymentMethodSchema),
   paymentMethodsController.addPaymentMethod
 );
 
 // Update payment method
 router.put('/:methodId', 
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     methodId: Joi.string().required()
-  }),
-  ValidationMiddleware.validate({ body: updatePaymentMethodSchema }),
+  }), 'params'),
+  ValidationMiddleware.validate(updatePaymentMethodSchema),
   paymentMethodsController.updatePaymentMethod
 );
 
 // Delete payment method
 router.delete('/:methodId', 
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     methodId: Joi.string().required()
-  }),
+  }), 'params'),
   paymentMethodsController.deletePaymentMethod
 );
 

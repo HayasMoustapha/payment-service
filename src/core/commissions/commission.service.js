@@ -1,4 +1,4 @@
-const { database } = require('../../config');
+const { query } = require("../../utils/database-wrapper");
 
 /**
  * Commission Service - Manages platform commissions
@@ -39,7 +39,7 @@ class CommissionService {
         WHERE is_active = true
       `;
       
-      const result = await database.query(query);
+      const result = await query(query);
       
       if (result.rows.length > 0) {
         result.rows.forEach(row => {
@@ -130,7 +130,7 @@ class CommissionService {
         commissionType
       ];
 
-      const result = await database.query(query, values);
+      const result = await query(query, values);
       const commission = result.rows[0];
 
       return {
@@ -173,7 +173,7 @@ class CommissionService {
         LIMIT 1
       `;
       
-      const result = await database.query(query, [transactionId]);
+      const result = await query(query, [transactionId]);
       
       if (result.rows.length === 0) {
         return {
@@ -272,7 +272,7 @@ class CommissionService {
 
       query += ` GROUP BY commission_type, status ORDER BY commission_type, status`;
 
-      const result = await database.query(query, values);
+      const result = await query(query, values);
 
       // Calculate totals
       let totalCommissions = 0;
@@ -376,7 +376,7 @@ class CommissionService {
       query += ` ORDER BY c.created_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
       values.push(limit, offset);
 
-      const result = await database.query(query, values);
+      const result = await query(query, values);
 
       // Get total count
       let countQuery = `
@@ -413,7 +413,7 @@ class CommissionService {
         countValues.push(endDate);
       }
 
-      const countResult = await database.query(countQuery, countValues);
+      const countResult = await query(countQuery, countValues);
       const total = parseInt(countResult.rows[0].total);
 
       return {
@@ -476,7 +476,7 @@ class CommissionService {
         RETURNING *
       `;
 
-      const result = await database.query(query, [status, commissionId]);
+      const result = await query(query, [status, commissionId]);
       
       if (result.rows.length === 0) {
         return {
@@ -546,7 +546,7 @@ class CommissionService {
           RETURNING *
         `;
 
-        await database.query(query, [commissionType, rate]);
+        await query(query, [commissionType, rate]);
       } catch (dbError) {
         console.warn('Failed to update commission rate in database:', dbError.message);
       }

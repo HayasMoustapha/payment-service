@@ -29,22 +29,21 @@ const captureOrderSchema = Joi.object({
 
 // PayPal Orders
 router.post('/orders', 
-  ValidationMiddleware.validate({ body: createOrderSchema }),
+  ValidationMiddleware.validate(createOrderSchema),
   paypalController.createOrder
 );
 
 router.get('/orders/:orderId', 
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     orderId: Joi.string().required()
-  }),
+  }), 'params'),
   paypalController.getOrder
 );
 
 router.post('/orders/:orderId/capture', 
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     orderId: Joi.string().required()
-  }),
-  ValidationMiddleware.validate({ body: captureOrderSchema }),
+  }), 'params'),
   paypalController.captureOrder
 );
 

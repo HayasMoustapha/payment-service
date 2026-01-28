@@ -17,23 +17,23 @@ const generateInvoicePdfSchema = Joi.object({
 
 // Invoice Management
 router.post('/generate',
-  ValidationMiddleware.validate({ body: generateInvoicePdfSchema }),
+  ValidationMiddleware.validate(generateInvoicePdfSchema),
   invoicesController.generateInvoicePdf
 );
 
 // Get Invoice
 router.get('/:invoiceId',
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     invoiceId: Joi.string().required()
-  }),
+  }), 'params'),
   invoicesController.getInvoice
 );
 
 // Download Invoice PDF
 router.get('/:invoiceId/download',
-  ValidationMiddleware.validateParams({
+  ValidationMiddleware.validate(Joi.object({
     invoiceId: Joi.string().required()
-  }),
+  }), 'params'),
   invoicesController.downloadInvoicePdf
 );
 

@@ -228,8 +228,8 @@ class WalletsController {
         RETURNING *
       `;
 
-      const { database } = require('../../config');
-      const withdrawalResult = await database.query(withdrawalQuery, [
+      const { query } = require("../../utils/database-wrapper");
+      const withdrawalResult = await query(withdrawalQuery, [
         req.user?.id,
         userType,
         amount,
@@ -279,7 +279,7 @@ class WalletsController {
         limit
       });
 
-      const { database } = require('../../config');
+      const { query } = require("../../utils/database-wrapper");
       const offset = (page - 1) * limit;
 
       let query = `
@@ -304,7 +304,7 @@ class WalletsController {
       query += ` ORDER BY w.requested_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
       values.push(limit, offset);
 
-      const result = await database.query(query, values);
+      const result = await query(query, values);
 
       // Get total count
       let countQuery = `
@@ -323,7 +323,7 @@ class WalletsController {
         countValues.push(status);
       }
 
-      const countResult = await database.query(countQuery, countValues);
+      const countResult = await query(countQuery, countValues);
       const total = parseInt(countResult.rows[0].total);
 
       return res.status(200).json(

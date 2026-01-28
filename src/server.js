@@ -1,53 +1,68 @@
+// Chargement des variables d'environnement depuis le fichier .env
 require('dotenv').config();
 
-const express = require('express');
-const cors = require('cors');
-const compression = require('compression');
-const morgan = require('morgan');
-const rawBody = require('raw-body');
+// Importation des modules nécessaires pour le serveur
+const express = require('express'); // Framework web Node.js
+const cors = require('cors'); // Middleware pour gérer le CORS (partage entre domaines)
+const compression = require('compression'); // Middleware pour compresser les réponses
+const morgan = require('morgan'); // Middleware pour les logs de requêtes HTTP
+const rawBody = require('raw-body'); // Utilitaire pour lire les corps bruts des requêtes
 
-
-const logger = require('./utils/logger');
-const healthRoutes = require('./health/health.routes');
-const paymentsRoutes = require('./api/routes/payments.routes');
-const stripeRoutes = require('./api/routes/stripe.routes');
-const paypalRoutes = require('./api/routes/paypal.routes');
-const refundsRoutes = require('./api/routes/refunds.routes');
-const invoicesRoutes = require('./api/routes/invoices.routes');
-const paymentMethodsRoutes = require('./api/routes/payment-methods.routes');
-const healthApiRoutes = require('./api/routes/health.routes');
-const bootstrap = require("./bootstrap");
+// Importation des modules locaux
+const logger = require('./utils/logger'); // Utilitaire de logging
+const healthRoutes = require('./health/health.routes'); // Routes de santé
+const paymentsRoutes = require('./api/routes/payments.routes'); // Routes de paiements
+const stripeRoutes = require('./api/routes/stripe.routes'); // Routes Stripe
+const paypalRoutes = require('./api/routes/paypal.routes'); // Routes PayPal
+const refundsRoutes = require('./api/routes/refunds.routes'); // Routes de remboursements
+const invoicesRoutes = require('./api/routes/invoices.routes'); // Routes de factures
+const paymentMethodsRoutes = require('./api/routes/payment-methods.routes'); // Routes méthodes paiement
+const healthApiRoutes = require('./api/routes/health.routes'); // Routes santé API
+const bootstrap = require("./bootstrap"); // Initialisation de la base de données
 
 /**
- * Serveur principal du Payment Service
+ * Serveur Principal du Service de Paiement
+ * Ce serveur gère toutes les requêtes HTTP pour les paiements
+ * Il configure les routes, middlewares et démarre le serveur
  */
 class PaymentServer {
   constructor() {
-    this.app = express();
-    this.port = process.env.PORT || 3003;
-    this.setupMiddleware();
-    this.setupRoutes();
-    this.setupErrorHandling();
+    this.app = express(); // Crée l'application Express
+    this.port = process.env.PORT || 3003; // Port du serveur (3003 par défaut)
+    this.setupMiddleware(); // Configure les middlewares
+    this.setupRoutes(); // Configure les routes
+    this.setupErrorHandling(); // Configure la gestion des erreurs
   }
 
   /**
-   * Configure les middlewares
+   * Configure les middlewares du serveur
+   * Les middlewares sont des fonctions qui s'exécutent avant les routes
    */
   setupMiddleware() {
-    // CORS
+    // MIDDLEWARE CORS : Permet les requêtes depuis d'autres domaines
     this.app.use(cors({
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'X-API-Key', 'Stripe-Signature', 'PayPal-Auth-Algo', 'PayPal-Cert-Id', 'PayPal-Transmission-Id', 'PayPal-Transmission-Sig', 'PayPal-Transmission-Time']
+      origin: process.env.CORS_ORIGIN || 'http://localhost:3000', // Domaine autorisé
+      credentials: true, // Autorise les cookies et authentification
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // Méthodes HTTP autorisées
+      allowedHeaders: [ // En-têtes HTTP autorisés
+        'Content-Type', 
+        'X-API-Key', 
+        'Stripe-Signature', // Pour les webhooks Stripe
+        'PayPal-Auth-Algo', // Pour les webhooks PayPal
+        'PayPal-Cert-Id', 
+        'PayPal-Transmission-Id', 
+        'PayPal-Transmission-Sig', 
+        'PayPal-Transmission-Time'
+      ]
     }));
 
-    // Compression
+    // MIDDLEWARE COMPRESSION : Compresse les réponses pour économiser la bande passante
     this.app.use(compression());
 
-    // Body parsing avec support pour les webhooks
+    // MIDDLEWARE PARSING : Analyse les corps des requêtes JSON
+    // Support spécial pour les webhooks qui peuvent avoir des formats différents
     this.app.use(express.json({ 
-      limit: '10mb',
+      limit: '10mb', // Limite la taille des requêtes à 10MB
       verify: (req, res, buf) => {
         req.rawBody = buf;
       }
