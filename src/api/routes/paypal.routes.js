@@ -2,14 +2,8 @@ const express = require('express');
 const Joi = require('joi');
 const router = express.Router();
 const paypalController = require('../controllers/paypal.controller');
-const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../shared');
+const { ValidationMiddleware } = require('../../../../shared');
 const paymentErrorHandler = require('../../error/payment.errorHandler');
-
-// Apply authentication to all routes (sauf webhooks)
-router.use(SecurityMiddleware.authenticated());
-
-// Apply context injection for all authenticated routes
-router.use(ContextInjector.injectUserContext());
 
 // Apply error handler for all routes
 router.use(paymentErrorHandler);
@@ -35,18 +29,18 @@ const captureOrderSchema = Joi.object({
 
 // PayPal Orders
 router.post('/orders', 
-  SecurityMiddleware.withPermissions('payments.create'),
   ValidationMiddleware.validate({ body: createOrderSchema }),
   paypalController.createOrder
 );
 
 router.get('/orders/:orderId', 
-  SecurityMiddleware.withPermissions('payments.read'),
+  ValidationMiddleware.validateParams({
+    orderId: Joi.string().required()
+  }),
   paypalController.getOrder
 );
 
 router.post('/orders/:orderId/capture', 
-  SecurityMiddleware.withPermissions('payments.update'),
   ValidationMiddleware.validateParams({
     orderId: Joi.string().required()
   }),

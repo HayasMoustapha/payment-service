@@ -2,31 +2,38 @@ const express = require('express');
 const Joi = require('joi');
 const router = express.Router();
 const paymentsController = require('../controllers/payments.controller');
-const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../shared');
+const { ValidationMiddleware } = require('../../../../shared');
 const paymentErrorHandler = require('../../error/payment.errorHandler');
-
-// Apply authentication to all routes (sauf webhooks)
-router.use(SecurityMiddleware.authenticated());
-
-// Apply context injection for all authenticated routes
-router.use(ContextInjector.injectUserContext());
 
 // Apply error handler for all routes
 router.use(paymentErrorHandler);
 
 // Legacy routes (maintained for backward compatibility)
 router.post('/process', 
-  SecurityMiddleware.withPermissions('payments.create'),
+  ValidationMiddleware.validate({
+    body: Joi.object({
+      amount: Joi.number().required(),
+      currency: Joi.string().default('eur'),
+      gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required(),
+      customerEmail: Joi.string().email().required(),
+      description: Joi.string().required()
+    })
+  }),
   paymentsController.processPayment
 );
 
 router.post('/templates/purchase', 
-  SecurityMiddleware.withPermissions('payments.create'),
+  ValidationMiddleware.validate({
+    body: Joi.object({
+      templateId: Joi.string().required(),
+      customerEmail: Joi.string().email().required(),
+      paymentMethod: Joi.string().required()
+    })
+  }),
   paymentsController.purchaseTemplate
 );
 
 router.post('/webhooks/:gateway', 
-  SecurityMiddleware.withPermissions('payments.webhooks'),
   ValidationMiddleware.validate({
     params: {
       gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required()
@@ -36,22 +43,22 @@ router.post('/webhooks/:gateway',
 );
 
 router.get('/status/:transactionId', 
-  SecurityMiddleware.withPermissions('payments.read'),
+  ValidationMiddleware.validateParams({
+    transactionId: Joi.string().required()
+  }),
   paymentsController.getPaymentStatus
 );
 
 router.get('/statistics', 
-  SecurityMiddleware.withPermissions('payments.read'),
   paymentsController.getPaymentStatistics
 );
 
 router.get('/gateways', 
-  SecurityMiddleware.withPermissions('payments.read'),
   paymentsController.getAvailableGateways
 );
 
 // Service Info routes
-router.get('/', SecurityMiddleware.withPermissions('payments.info.read'), (req, res) => {
+router.get('/', (req, res) => {
   res.json({
     service: 'Payment API',
     version: '1.0.0',

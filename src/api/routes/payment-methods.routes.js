@@ -2,14 +2,8 @@ const express = require('express');
 const Joi = require('joi');
 const router = express.Router();
 const paymentMethodsController = require('../controllers/payment-methods.controller');
-const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../shared');
+const { ValidationMiddleware } = require('../../../../shared');
 const paymentErrorHandler = require('../../error/payment.errorHandler');
-
-// Apply authentication to all routes
-router.use(SecurityMiddleware.authenticated());
-
-// Apply context injection for all authenticated routes
-router.use(ContextInjector.injectUserContext());
 
 // Apply error handler for all routes
 router.use(paymentErrorHandler);
@@ -30,20 +24,17 @@ const updatePaymentMethodSchema = Joi.object({
 
 // Get user payment methods
 router.get('/', 
-  SecurityMiddleware.withPermissions('payment-methods.read'),
   paymentMethodsController.getUserPaymentMethods
 );
 
 // Add payment method
 router.post('/', 
-  SecurityMiddleware.withPermissions('payment-methods.create'),
   ValidationMiddleware.validate({ body: addPaymentMethodSchema }),
   paymentMethodsController.addPaymentMethod
 );
 
 // Update payment method
 router.put('/:methodId', 
-  SecurityMiddleware.withPermissions('payment-methods.update'),
   ValidationMiddleware.validateParams({
     methodId: Joi.string().required()
   }),
@@ -53,7 +44,6 @@ router.put('/:methodId',
 
 // Delete payment method
 router.delete('/:methodId', 
-  SecurityMiddleware.withPermissions('payment-methods.delete'),
   ValidationMiddleware.validateParams({
     methodId: Joi.string().required()
   }),

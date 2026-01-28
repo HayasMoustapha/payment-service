@@ -2,14 +2,8 @@ const express = require('express');
 const Joi = require('joi');
 const router = express.Router();
 const refundsController = require('../controllers/refunds.controller');
-const { SecurityMiddleware, ValidationMiddleware, ContextInjector } = require('../../../../shared');
+const { ValidationMiddleware } = require('../../../../shared');
 const paymentErrorHandler = require('../../error/payment.errorHandler');
-
-// Apply authentication to all routes
-router.use(SecurityMiddleware.authenticated());
-
-// Apply context injection for all authenticated routes
-router.use(ContextInjector.injectUserContext());
 
 // Apply error handler for all routes
 router.use(paymentErrorHandler);
@@ -31,32 +25,33 @@ const createPayPalRefundSchema = Joi.object({
 
 // Stripe refunds
 router.post('/stripe', 
-  SecurityMiddleware.withPermissions('refunds.create'),
   ValidationMiddleware.validate({ body: createStripeRefundSchema }),
   refundsController.createStripeRefund
 );
 
 router.get('/stripe/:refundId', 
-  SecurityMiddleware.withPermissions('refunds.read'),
+  ValidationMiddleware.validateParams({
+    refundId: Joi.string().required()
+  }),
   refundsController.getRefundStatus
 );
 
 // PayPal refunds
 router.post('/paypal', 
-  SecurityMiddleware.withPermissions('refunds.create'),
   ValidationMiddleware.validate({ body: createPayPalRefundSchema }),
   refundsController.createPayPalRefund
 );
 
 // Generic refund status
 router.get('/status/:refundId', 
-  SecurityMiddleware.withPermissions('refunds.read'),
+  ValidationMiddleware.validateParams({
+    refundId: Joi.string().required()
+  }),
   refundsController.getRefundStatus
 );
 
 // List refunds
 router.get('/', 
-  SecurityMiddleware.withPermissions('refunds.read'),
   refundsController.listRefunds
 );
 

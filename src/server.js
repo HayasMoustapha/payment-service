@@ -2,16 +2,10 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
 const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-const mongoSanitize = require('express-mongo-sanitize');
 const morgan = require('morgan');
 const rawBody = require('raw-body');
 
-// CONFIGURATION JWT UNIFIÉ - ÉTAPE CRUCIALE
-const UnifiedJWTSecret = require('../../shared/config/unified-jwt-secret');
-UnifiedJWTSecret.configureService('payment-service');
 
 const logger = require('./utils/logger');
 const healthRoutes = require('./health/health.routes');
@@ -40,24 +34,12 @@ class PaymentServer {
    * Configure les middlewares
    */
   setupMiddleware() {
-    // Sécurité
-    this.app.use(helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", "data:", "https:"],
-        },
-      },
-    }));
-
     // CORS
     this.app.use(cors({
       origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'Stripe-Signature', 'PayPal-Auth-Algo', 'PayPal-Cert-Id', 'PayPal-Transmission-Id', 'PayPal-Transmission-Sig', 'PayPal-Transmission-Time']
+      allowedHeaders: ['Content-Type', 'X-API-Key', 'Stripe-Signature', 'PayPal-Auth-Algo', 'PayPal-Cert-Id', 'PayPal-Transmission-Id', 'PayPal-Transmission-Sig', 'PayPal-Transmission-Time']
     }));
 
     // Compression
@@ -85,52 +67,6 @@ class PaymentServer {
       }));
     }
 
-    // Rate limiting général
-    const limiter = rateLimit({
-      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-      max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
-      message: {
-        success: false,
-        message: 'Trop de requêtes, veuillez réessayer plus tard',
-        error: {
-          code: 'RATE_LIMIT_EXCEEDED'
-        }
-      },
-      standardHeaders: true,
-      legacyHeaders: false,
-    });
-    this.app.use('/api', limiter);
-
-    // Rate limiting spécifique pour les paiements
-    const paymentLimiter = rateLimit({
-      windowMs: 60 * 1000, // 1 minute
-      max: parseInt(process.env.PAYMENT_RATE_LIMIT) || 5, // limit each IP to 5 payments per minute
-      message: {
-        success: false,
-        message: 'Limite de paiements atteinte, veuillez réessayer plus tard',
-        error: {
-          code: 'PAYMENT_RATE_LIMIT_EXCEEDED'
-        }
-      }
-    });
-    this.app.use('/api/payments/stripe/payment-intent', paymentLimiter);
-    this.app.use('/api/payments/stripe/checkout-session', paymentLimiter);
-    this.app.use('/api/payments/paypal/orders', paymentLimiter);
-
-    // Rate limiting spécifique pour les remboursements
-    const refundLimiter = rateLimit({
-      windowMs: 60 * 1000, // 1 minute
-      max: 3, // limit each IP to 3 refunds per minute
-      message: {
-        success: false,
-        message: 'Limite de remboursements atteinte, veuillez réessayer plus tard',
-        error: {
-          code: 'REFUND_RATE_LIMIT_EXCEEDED'
-        }
-      }
-    });
-    this.app.use('/api/payments/refunds', refundLimiter);
-
     // Request logging
     this.app.use((req, res, next) => {
       logger.info('Incoming request', {
@@ -148,9 +84,6 @@ class PaymentServer {
    * Configure les routes
    */
   setupRoutes() {
-    // Middleware d'authentification robuste pour les routes protégées
-    const RobustAuthMiddleware = require('../../shared/middlewares/robust-auth-middleware');
-    
     // Route racine
     this.app.get('/', (req, res) => {
       res.json({
@@ -171,8 +104,7 @@ class PaymentServer {
     // Routes de santé (publiques)
     this.app.use('/health', healthRoutes);
 
-    // Routes API protégées
-    this.app.use('/api', RobustAuthMiddleware.authenticate());
+    // Routes API
     this.app.use('/api/payments', paymentsRoutes);
     
     // Nouvelles routes structurées selon Postman
