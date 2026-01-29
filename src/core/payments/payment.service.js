@@ -2,6 +2,7 @@
 const gatewayManager = require('../providers/gateway.manager'); // Gestionnaire des passerelles de paiement (Stripe, PayPal, etc.)
 const { query } = require("../../utils/database-wrapper"); // Utilitaire pour exécuter des requêtes SQL
 const logger = require("../../utils/logger"); // Utilitaire pour écrire des logs dans la console
+const coreClient = require("../../../../../shared/clients/core-client"); // Client pour communiquer avec le service Core
 
 /**
  * Service de Paiement Principal
@@ -24,6 +25,14 @@ class PaymentService {
     // Si le service n'est pas encore initialisé
     if (!this.initialized) {
       try {
+        // Vérifier la connexion avec le service Core
+        const coreConnection = await coreClient.testConnection();
+        if (!coreConnection) {
+          logger.warn('Core service unavailable, some features may be limited');
+        } else {
+          logger.info('Core service connection established');
+        }
+
         // Tente d'initialiser le gestionnaire de passerelles (Stripe, PayPal)
         await gatewayManager.initialize();
         this.initialized = true; // Marque le service comme initialisé
@@ -206,7 +215,32 @@ class PaymentService {
     } = templateData;
 
     try {
-      // ÉTAPE 1 : Traiter le paiement en utilisant la méthode processPayment standard
+      // ÉTAPE 1 : Vérifier la disponibilité du template auprès du service Core
+      logger.payment('Vérification disponibilité template', { templateId, userId });
+      
+      const templateCheck = await coreClient.checkTemplateAvailability(templateId);
+      if (!templateCheck.success) {
+        throw new Error(`Template ${templateId} non disponible: ${templateCheck.error}`);
+      }
+
+      if (!templateCheck.available) {
+        throw new Error(`Template ${templateId} n'est pas disponible à l'achat`);
+      }
+
+      // ÉTAPE 2 : Récupérer les détails du template pour validation
+      const templateInfo = await coreClient.getTemplate(templateId);
+      if (!templateInfo.success) {
+        throw new Error(`Impossible de récupérer les détails du template ${templateId}`);
+      }
+
+      const template = templateInfo.template;
+      
+      // ÉTAPE 3 : Valider que le montant correspond au prix du template
+      if (template.price && amount !== template.price) {
+        throw new Error(`Montant invalide. Attendu: ${template.price}, Reçu: ${amount}`);
+      }
+
+      // ÉTAPE 4 : Traiter le paiement en utilisant la méthode processPayment standard
       // On réutilise la logique de paiement existante
       const paymentResult = await this.processPayment({
         userId, // ID utilisateur
@@ -219,18 +253,58 @@ class PaymentService {
           ...metadata, // Métadonnées existantes
           type: 'template_purchase', // Type de transaction
           templateId, // ID du template
-          designerId // ID du designer
+          designerId, // ID du designer
+          templateName: template.name, // Nom du template
+          templateCategory: template.category // Catégorie du template
         },
         customerEmail // Email du client
       });
 
-      // ÉTAPE 2 : Si le paiement a réussi, créditer le portefeuille du designer
-      // Le designer reçoit l'argent de la vente de son template
+      // ÉTAPE 5 : Si le paiement a réussi, notifier le service Core et créditer le designer
       if (paymentResult.status === 'completed') {
-        await this.creditDesignerWallet(designerId, amount, 'template_sale', {
-          templateId, // ID du template vendu
-          transactionId: paymentResult.transactionId // ID de la transaction
+        logger.payment('Paiement template réussi, notification du service Core', {
+          templateId,
+          userId,
+          transactionId: paymentResult.transactionId
         });
+
+        // ÉTAPE 5a : Notifier le service Core de l'achat réussi
+        const notificationResult = await coreClient.notifyTemplatePurchase({
+          templateId,
+          userId,
+          transactionId: paymentResult.transactionId,
+          amount,
+          currency,
+          metadata: {
+            ...metadata,
+            designerId,
+            templateName: template.name,
+            templateCategory: template.category,
+            purchaseDate: new Date().toISOString()
+          }
+        });
+
+        if (!notificationResult.success) {
+          logger.warn('Échec notification Core, mais paiement réussi', {
+            templateId,
+            error: notificationResult.error
+          });
+          // On ne fait pas échouer la transaction si la notification échoue
+        } else {
+          logger.payment('Notification Core envoyée avec succès', {
+            templateId,
+            notificationId: notificationResult.notificationId
+          });
+        }
+
+        // ÉTAPE 5b : Créditer le portefeuille du designer (si applicable)
+        if (designerId) {
+          await this.creditDesignerWallet(designerId, amount, 'template_sale', {
+            templateId, // ID du template vendu
+            transactionId: paymentResult.transactionId, // ID de la transaction
+            notificationId: notificationResult.notificationId // ID de la notification
+          });
+        }
       }
 
       return paymentResult;

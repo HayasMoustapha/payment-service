@@ -1,51 +1,62 @@
-const stripeService = require('../../core/stripe/stripe.service');
+// Importation des modules nécessaires pour le contrôleur Stripe
+const stripeService = require('../../core/stripe/stripe.service'); // Service Stripe pour les paiements
 const { 
-  successResponse, 
-  createdResponse, 
-  notFoundResponse,
-  errorResponse,
-  paymentErrorResponse
+  successResponse, // Utilitaire pour les réponses de succès
+  createdResponse, // Utilitaire pour les réponses de création
+  notFoundResponse, // Utilitaire pour les réponses "non trouvé"
+  errorResponse, // Utilitaire pour les réponses d'erreur
+  paymentErrorResponse // Utilitaire pour les erreurs de paiement
 } = require('../../utils/response');
-const logger = require('../../utils/logger');
+const logger = require('../../utils/logger'); // Utilitaire pour les logs
 
 /**
- * Stripe Controller - Handles Stripe-specific payment operations
+ * Contrôleur Stripe - Gère les opérations de paiement spécifiques à Stripe
+ * Ce contrôleur fait le lien entre les routes API et le service Stripe
+ * Il gère les payment intents, clients, méthodes de paiement et webhooks
  */
 class StripeController {
   /**
-   * Create a Stripe Payment Intent
+   * Crée un Payment Intent Stripe
+   * Un Payment Intent représente l'intention de payer et contient toutes les informations
+   * nécessaires pour confirmer un paiement avec Stripe
+   * @param {Object} req - Requête HTTP avec les données du paiement
+   * @param {Object} res - Réponse HTTP à renvoyer au client
    */
   async createPaymentIntent(req, res) {
     try {
+      // Extraction des données du paiement depuis le corps de la requête
       const {
-        amount,
-        currency = 'eur',
-        customerEmail,
-        description,
-        metadata = {}
+        amount, // Montant du paiement en centimes (ex: 2500 = 25.00€)
+        currency = 'eur', // Devise, EUR par défaut
+        customerEmail, // Email du client pour la facturation
+        description, // Description du paiement pour le client
+        metadata = {} // Données additionnelles personnalisables
       } = req.body;
 
-      logger.payment('Creating Stripe Payment Intent', {
-        amount,
-        currency,
-        customerEmail,
-        userId: req.user?.id
+      // LOG : Enregistre les informations de création pour le débogage
+      logger.payment('Création d\'un Payment Intent Stripe', {
+        amount, // Montant
+        currency, // Devise
+        customerEmail, // Email client
+        userId: req.user?.id // ID utilisateur si authentifié
       });
 
+      // APPEL DU SERVICE : Crée le Payment Intent via le service Stripe
       const result = await stripeService.createPaymentIntent({
-        amount,
-        currency,
-        customerEmail,
-        description,
+        amount, // Montant
+        currency, // Devise
+        customerEmail, // Email client
+        description, // Description
         metadata: {
-          ...metadata,
-          userId: req.user?.id
+          ...metadata, // Métadonnées existantes
+          userId: req.user?.id // ID utilisateur ajouté aux métadonnées
         }
       });
 
+      // VÉRIFICATION : Si la création a échoué
       if (!result.success) {
-        return res.status(400).json(
-          paymentErrorResponse(result.error, 'STRIPE_PAYMENT_INTENT_FAILED')
+        return res.status(400).json( // Code 400 = Bad Request
+          paymentErrorResponse(result.error, 'STRIPE_PAYMENT_INTENT_FAILED') // Erreur Stripe
         );
       }
 
