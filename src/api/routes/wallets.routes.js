@@ -162,18 +162,20 @@ router.get('/commissions/rates',
 /**
  * 🔮 PROJECTION DE COMMISSION
  * POST /api/wallets/commissions/projections
- * Crée une projection de commission
+ * Calcule les commissions projetées
  */
 router.post('/commissions/projections', 
   ValidationMiddleware.validate({
     body: Joi.object({
-      userId: Joi.string().required(),
-      period: Joi.string().valid('daily', 'weekly', 'monthly').required(),
-      commissionRate: Joi.number().min(0).max(0.5).required(),
-      projectedAmount: Joi.number().positive().required()
+      templateSales: Joi.array().items(Joi.object({
+        templateId: Joi.string().required(),
+        price: Joi.number().positive().required(),
+        quantity: Joi.number().integer().positive().required()
+      })).required(),
+      commissionRate: Joi.number().min(0).max(0.5).default(0.1)
     })
   }),
-  walletsController.createCommissionProjection
+  walletsController.calculateProjectedCommissions
 );
 
 /**

@@ -27,6 +27,7 @@ const rawBody = require('raw-body'); // Utilitaire pour lire les corps bruts des
 
 // Importation des modules locaux
 const logger = require('./utils/logger'); // Utilitaire de logging
+const bootstrap = require('./bootstrap'); // Initialisation de la base de données
 const healthRoutes = require('./health/health.routes'); // Routes de santé
 const paymentsRoutes = require('./api/routes/payments.routes'); // Routes de paiements
 const stripeRoutes = require('./api/routes/stripe.routes'); // Routes Stripe
@@ -45,7 +46,7 @@ const bootstrap = require("./bootstrap"); // Initialisation de la base de donné
 class PaymentServer {
   constructor() {
     this.app = express(); // Crée l'application Express
-    this.port = process.env.PORT || 3003; // Port du serveur (3003 par défaut)
+    this.port = 3003; // Forcer le port 3003 pour le payment-service
     this.setupMiddleware(); // Configure les middlewares
     this.setupRoutes(); // Configure les routes
     this.setupErrorHandling(); // Configure la gestion des erreurs

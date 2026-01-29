@@ -8,7 +8,7 @@ const createConnection = () => {
   return new Pool({
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT) || 5432,
-    database: process.env.DB_NAME || 'event_planner_payments',
+    database: 'event_planner_payments', // Forcer la bonne base de données
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
@@ -94,7 +94,7 @@ class DatabaseBootstrap {
     const tempClient = await tempPool.connect();
     
     try {
-      const databaseName = process.env.DB_NAME || 'event_planner_payments';
+      const databaseName = 'event_planner_payments'; // Forcer la bonne base de données
       
       const checkQuery = `
         SELECT 1 FROM pg_database 

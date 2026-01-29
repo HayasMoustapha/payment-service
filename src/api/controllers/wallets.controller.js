@@ -279,7 +279,7 @@ class WalletsController {
         limit
       });
 
-      const { query } = require("../../utils/database-wrapper");
+      const { query: dbQuery } = require("../../utils/database-wrapper");
       const offset = (page - 1) * limit;
 
       let query = `
@@ -304,7 +304,7 @@ class WalletsController {
       query += ` ORDER BY w.requested_at DESC LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`;
       values.push(limit, offset);
 
-      const result = await query(query, values);
+      const result = await dbQuery(query, values);
 
       // Get total count
       let countQuery = `
@@ -323,7 +323,7 @@ class WalletsController {
         countValues.push(status);
       }
 
-      const countResult = await query(countQuery, countValues);
+      const countResult = await dbQuery(countQuery, countValues);
       const total = parseInt(countResult.rows[0].total);
 
       return res.status(200).json(
@@ -589,4 +589,9 @@ class WalletsController {
   }
 }
 
-module.exports = new WalletsController();
+// Ajout des méthodes manquantes
+const addMissingMethods = require('./wallets-missing-methods');
+const walletsController = new WalletsController();
+addMissingMethods(walletsController);
+
+module.exports = walletsController;
