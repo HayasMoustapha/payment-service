@@ -1,4 +1,21 @@
-// Chargement des variables d'environnement depuis le fichier .env
+/**
+ * 💳 PAYMENT SERVICE - SERVEUR PRINCIPAL
+ * 
+ * RÔLE : Service technique de traitement des paiements
+ * UTILISATION : Exécution des transactions via gateways (Stripe, PayPal, etc.)
+ * PORT : 3003
+ * 
+ * FONCTIONNEMENT :
+ * - Reçoit les requêtes de paiement de event-planner-core
+ * - Traite les transactions via les gateways appropriées
+ * - Gère les wallets et commissions de manière technique
+ * - Émet des webhooks pour les changements de statut
+ * 
+ * NOTE : Service technique sans authentification
+ * La sécurité est gérée par event-planner-core
+ */
+
+// Chargement des variables d'environnement
 require('dotenv').config();
 
 // Importation des modules nécessaires pour le serveur
@@ -21,9 +38,9 @@ const healthApiRoutes = require('./api/routes/health.routes'); // Routes santé 
 const bootstrap = require("./bootstrap"); // Initialisation de la base de données
 
 /**
- * Serveur Principal du Service de Paiement
- * Ce serveur gère toutes les requêtes HTTP pour les paiements
- * Il configure les routes, middlewares et démarre le serveur
+ * 🏗️ CLASSE SERVEUR PAYMENT
+ * 
+ * Configure et démarre le serveur de paiement technique
  */
 class PaymentServer {
   constructor() {
@@ -35,11 +52,12 @@ class PaymentServer {
   }
 
   /**
-   * Configure les middlewares du serveur
+   * 🔧 CONFIGURATION DES MIDDLEWARES
+   * 
    * Les middlewares sont des fonctions qui s'exécutent avant les routes
    */
   setupMiddleware() {
-    // MIDDLEWARE CORS : Permet les requêtes depuis d'autres domaines
+    // 🌐 MIDDLEWARE CORS : Permet les requêtes depuis d'autres domaines
     this.app.use(cors({
       origin: process.env.CORS_ORIGIN || 'http://localhost:3000', // Domaine autorisé
       credentials: true, // Autorise les cookies et authentification
@@ -49,31 +67,16 @@ class PaymentServer {
         'X-API-Key', 
         'Stripe-Signature', // Pour les webhooks Stripe
         'PayPal-Auth-Algo', // Pour les webhooks PayPal
-        'PayPal-Cert-Id', 
-        'PayPal-Transmission-Id', 
-        'PayPal-Transmission-Sig', 
-        'PayPal-Transmission-Time'
+        'PayPal-Trans-ID',   // Pour les webhooks PayPal
+        'PayPal-Cert-ID',    // Pour les webhooks PayPal
+        'CinetPay-Signature' // Pour les webhooks CinetPay
       ]
     }));
 
-    // MIDDLEWARE COMPRESSION : Compresse les réponses pour économiser la bande passante
+    // 🗜️ MIDDLEWARE COMPRESSION : Compresse les réponses pour améliorer la performance
     this.app.use(compression());
 
-    // MIDDLEWARE PARSING : Analyse les corps des requêtes JSON
-    // Support spécial pour les webhooks qui peuvent avoir des formats différents
-    this.app.use(express.json({ 
-      limit: '10mb', // Limite la taille des requêtes à 10MB
-      verify: (req, res, buf) => {
-        req.rawBody = buf;
-      }
-    }));
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-    // Sécurité contre les injections NoSQL - CORRECTION : désactiver mongoSanitize défectueux
-    // TODO: Remplacer par une solution plus stable comme mongo-express-sanitize
-    // this.app.use(mongoSanitize());
-
-    // Logging
+    // 📝 MIDDLEWARE LOGGING : Enregistre les requêtes HTTP
     if (process.env.NODE_ENV !== 'test') {
       this.app.use(morgan('combined', {
         stream: {
@@ -82,290 +85,236 @@ class PaymentServer {
       }));
     }
 
-    // Request logging
+    // 📄 MIDDLEWARE PARSING : Analyse les corps des requêtes
+    this.app.use(express.json({ limit: '10mb' })); // JSON avec limite de 10MB
+    this.app.use(express.urlencoded({ extended: true, limit: '10mb' })); // URL-encoded
+
+    // 🔍 MIDDLEWARE WEBHOOK RAW BODY : Pour les webhooks qui nécessitent le corps brut
+    this.app.use('/api/webhooks', async (req, res, next) => {
+      if (req.headers['stripe-signature'] || 
+          req.headers['paypal-auth-algo'] || 
+          req.headers['cinetpay-signature']) {
+        req.rawBody = await rawBody(req, {
+          length: req.headers['content-length'],
+          limit: '1mb'
+        });
+      }
+      next();
+    });
+
+    // 📊 MIDDLEWARE REQUEST ID : Ajoute un ID unique à chaque requête
     this.app.use((req, res, next) => {
-      logger.info('Incoming request', {
+      req.id = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      res.setHeader('X-Request-ID', req.id);
+      
+      // Log avec ID de requête pour traçabilité
+      logger.info(`Request started: ${req.method} ${req.path}`, {
+        requestId: req.id,
         method: req.method,
-        url: req.url,
+        path: req.path,
         ip: req.ip,
-        userAgent: req.get('User-Agent'),
-        contentType: req.get('Content-Type')
+        userAgent: req.get('User-Agent')
       });
+      
       next();
     });
   }
 
   /**
-   * Configure les routes
+   * 🛣️ CONFIGURATION DES ROUTES
+   * 
+   * Définit toutes les routes du service de paiement
    */
   setupRoutes() {
-    // Route racine
-    this.app.get('/', (req, res) => {
+    // 🏥 ROUTES DE SANTÉ : Vérification de l'état du service
+    this.app.use('/health', healthRoutes);
+    this.app.use('/api/health', healthApiRoutes);
+
+    // 💳 ROUTES DE PAIEMENT : Traitement des transactions
+    this.app.use('/api/payments', paymentsRoutes);
+
+    // 🔄 ROUTES DES PASSERELLES : Intégration avec les fournisseurs de paiement
+    this.app.use('/api/stripe', stripeRoutes);
+    this.app.use('/api/paypal', paypalRoutes);
+
+    // 💰 ROUTES DE GESTION : Remboursements, factures, méthodes de paiement
+    this.app.use('/api/refunds', refundsRoutes);
+    this.app.use('/api/invoices', invoicesRoutes);
+    this.app.use('/api/payment-methods', paymentMethodsRoutes);
+
+    // 🏦 ROUTES WALLETS : Gestion technique des wallets et commissions
+    this.app.use('/api/wallets', require('./api/routes/wallets.routes'));
+
+    // 📊 ROUTE INFO : Informations sur le service (pour monitoring)
+    this.app.get('/api/info', (req, res) => {
       res.json({
         service: 'Payment Service',
-        version: process.env.npm_package_version || '1.0.0',
-        status: 'running',
+        version: '2.0.0',
+        description: 'Service technique de traitement des paiements',
+        environment: process.env.NODE_ENV || 'development',
+        uptime: process.uptime(),
         timestamp: new Date().toISOString(),
-        capabilities: {
-          stripe: true,
-          paypal: true,
-          refunds: true,
-          invoices: true,
-          webhooks: true
+        gateways: {
+          stripe: !!process.env.STRIPE_SECRET_KEY,
+          paypal: !!process.env.PAYPAL_CLIENT_SECRET,
+          cinetpay: !!process.env.CINETPAY_API_KEY
         }
       });
     });
 
-    // Routes de santé (publiques)
-    this.app.use('/health', healthRoutes);
-
-    // Routes API
-    this.app.use('/api/payments', paymentsRoutes);
-    
-    // Nouvelles routes structurées selon Postman
-    this.app.use('/api/payments/stripe', stripeRoutes);
-    this.app.use('/api/payments/paypal', paypalRoutes);
-    this.app.use('/api/payments/refunds', refundsRoutes);
-    this.app.use('/api/payments/invoices', invoicesRoutes);
-    this.app.use('/api/payments/payment-methods', paymentMethodsRoutes);
-    this.app.use('/health', healthApiRoutes);
-
-    // Route API racine
-    this.app.get('/api', (req, res) => {
-      res.json({
-        service: 'Payment API',
-        version: process.env.npm_package_version || '1.0.0',
-        endpoints: {
-          payments: '/api/payments',
-          health: '/health'
-        },
-        documentation: '/api/docs',
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    // Route pour les métriques Prometheus si activé
-    if (process.env.ENABLE_METRICS === 'true') {
-      const promClient = require('prom-client');
-      
-      // Créer un registre de métriques
-      const register = new promClient.Registry();
-      
-      // Ajouter des métriques par défaut
-      promClient.collectDefaultMetrics({ register });
-      
-      // Métriques personnalisées
-      const paymentCounter = new promClient.Counter({
-        name: 'payment_service_payments_total',
-        help: 'Total number of payments processed',
-        labelNames: ['provider', 'status', 'currency']
+    // ❌ ROUTE 404 : Gestion des routes non trouvées
+    this.app.use('*', (req, res) => {
+      logger.warn(`Route not found: ${req.method} ${req.path}`, {
+        requestId: req.id,
+        method: req.method,
+        path: req.path
       });
       
-      const refundCounter = new promClient.Counter({
-        name: 'payment_service_refunds_total',
-        help: 'Total number of refunds processed',
-        labelNames: ['provider', 'status', 'currency']
-      });
-      
-      const invoiceCounter = new promClient.Counter({
-        name: 'payment_service_invoices_total',
-        help: 'Total number of invoices generated',
-        labelNames: ['status']
-      });
-      
-      const paymentAmountHistogram = new promClient.Histogram({
-        name: 'payment_service_payment_amount',
-        help: 'Payment amount distribution',
-        labelNames: ['provider', 'currency'],
-        buckets: [100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000]
-      });
-      
-      register.registerMetric(paymentCounter);
-      register.registerMetric(refundCounter);
-      register.registerMetric(invoiceCounter);
-      register.registerMetric(paymentAmountHistogram);
-      
-      // Endpoint pour les métriques
-      this.app.get('/metrics', async (req, res) => {
-        try {
-          res.set('Content-Type', register.contentType);
-          res.end(await register.metrics());
-        } catch (error) {
-          logger.error('Failed to generate metrics', {
-            error: error.message
-          });
-          res.status(500).end();
-        }
-      });
-    }
-
-    // Route 404
-    this.app.use((req, res) => {
       res.status(404).json({
         success: false,
-        message: 'Route non trouvée',
-        error: {
-          code: 'NOT_FOUND',
-          path: req.originalUrl
-        },
-        timestamp: new Date().toISOString()
+        error: 'Route not found',
+        message: `Cannot ${req.method} ${req.path}`,
+        code: 'ROUTE_NOT_FOUND',
+        requestId: req.id
       });
     });
   }
 
   /**
-   * Configure la gestion des erreurs
+   * 🚨 CONFIGURATION DE LA GESTION DES ERREURS
+   * 
+   * Gère toutes les erreurs du serveur de manière centralisée
    */
   setupErrorHandling() {
-    // Gestionnaire d'erreurs global
+    // 🚨 MIDDLEWARE D'ERREUR GLOBAL
     this.app.use((error, req, res, next) => {
-      logger.error('Unhandled error', {
+      // Log détaillé de l'erreur
+      logger.error('Unhandled error occurred', {
+        requestId: req.id,
         error: error.message,
         stack: error.stack,
         method: req.method,
-        url: req.url,
-        ip: req.ip,
-        userAgent: req.get('User-Agent')
+        path: req.path,
+        ip: req.ip
       });
 
-      // Ne pas envoyer le stack trace en production
-      const isDevelopment = process.env.NODE_ENV === 'development';
-      
-      const errorResponse = {
-        success: false,
-        message: isDevelopment ? error.message : 'Erreur interne du serveur',
-        error: {
-          code: 'INTERNAL_SERVER_ERROR'
-        },
-        timestamp: new Date().toISOString()
-      };
-
-      if (isDevelopment) {
-        errorResponse.error.stack = error.stack;
+      // En développement, on renvoie le stack complet
+      if (process.env.NODE_ENV === 'development') {
+        return res.status(500).json({
+          success: false,
+          error: 'Internal server error',
+          message: error.message,
+          stack: error.stack,
+          code: 'INTERNAL_ERROR',
+          requestId: req.id
+        });
       }
 
-      res.status(error.status || 500).json(errorResponse);
-    });
-
-    // Gestion des promesses rejetées non capturées
-    process.on('unhandledRejection', (reason, promise) => {
-      logger.error('Unhandled Rejection at:', {
-        promise,
-        reason: reason.message || reason
+      // En production, on masque les détails sensibles
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'An unexpected error occurred',
+        code: 'INTERNAL_ERROR',
+        requestId: req.id
       });
-    });
-
-    // Gestion des exceptions non capturées
-    process.on('uncaughtException', (error) => {
-      logger.error('Uncaught Exception:', {
-        error: error.message,
-        stack: error.stack
-      });
-      
-      // Arrêter le serveur proprement
-      this.gracefulShutdown('SIGTERM');
-    });
-
-    // Gestion des signaux système
-    process.on('SIGTERM', () => {
-      logger.info('SIGTERM received');
-      this.gracefulShutdown('SIGTERM');
-    });
-
-    process.on('SIGINT', () => {
-      logger.info('SIGINT received');
-      this.gracefulShutdown('SIGINT');
     });
   }
 
   /**
-   * Démarre le serveur
+   * 🚀 DÉMARRAGE DU SERVEUR
+   * 
+   * Démarre le serveur et gère les erreurs de démarrage
    */
   async start() {
     try {
-      // Bootstrap automatique (crée la BD et applique les migrations)
-      await bootstrap.initialize();
-      
-      logger.info('🚀 Starting Payment Service server...');
-      
-      this.server = this.app.listen(this.port, () => {
+      // 🗄️ INITIALISATION DE LA BASE DE DONNÉES
+      logger.info('Initializing database...');
+      await bootstrap();
+      logger.info('Database initialized successfully');
+
+      // 🚀 DÉMARRAGE DU SERVEUR HTTP
+      const server = this.app.listen(this.port, () => {
         logger.info(`Payment Service started successfully`, {
           port: this.port,
           environment: process.env.NODE_ENV || 'development',
-          version: process.env.npm_package_version || '1.0.0',
-          pid: process.pid,
-          capabilities: {
-            stripe: true,
-            paypal: true,
-            refunds: true,
-            invoices: true,
-            webhooks: true,
-            metrics: process.env.ENABLE_METRICS === 'true'
+          nodeVersion: process.version,
+          timestamp: new Date().toISOString()
+        });
+
+        // 📊 LOG DES PASSERELLES CONFIGURÉES
+        const gateways = {
+          stripe: !!process.env.STRIPE_SECRET_KEY,
+          paypal: !!process.env.PAYPAL_CLIENT_SECRET,
+          cinetpay: !!process.env.CINETPAY_API_KEY
+        };
+        
+        logger.info('Payment gateways configured', gateways);
+      });
+
+      // 🛑 GESTION GRACIEUSE DE L'ARRÊT
+      const gracefulShutdown = async (signal) => {
+        logger.info(`Received ${signal}, starting graceful shutdown...`);
+        
+        server.close(async () => {
+          logger.info('HTTP server closed');
+          
+          try {
+            // Fermeture des connexions à la base de données
+            const database = require('./database');
+            if (database.pool) {
+              await database.pool.end();
+              logger.info('Database connections closed');
+            }
+            
+            logger.info('Graceful shutdown completed');
+            process.exit(0);
+          } catch (error) {
+            logger.error('Error during shutdown:', error);
+            process.exit(1);
           }
         });
-      });
-    } catch (error) {
-      logger.error('❌ Failed to start server:', error);
-      process.exit(1);
-    }
 
-    this.server.on('error', (error) => {
-      if (error.syscall !== 'listen') {
-        throw error;
-      }
-
-      const bind = typeof this.port === 'string'
-        ? 'Pipe ' + this.port
-        : 'Port ' + this.port;
-
-      switch (error.code) {
-        case 'EACCES':
-          logger.error(`${bind} requires elevated privileges`);
+        // Timeout forcé après 30 secondes
+        setTimeout(() => {
+          logger.error('Forced shutdown after timeout');
           process.exit(1);
-          break;
-        case 'EADDRINUSE':
-          logger.error(`${bind} is already in use`);
-          process.exit(1);
-          break;
-        default:
-          throw error;
-      }
-    });
-  }
+        }, 30000);
+      };
 
-  /**
-   * Arrête proprement le serveur
-   * @param {string} signal - Signal reçu
-   */
-  async gracefulShutdown(signal) {
-    logger.info(`Graceful shutdown initiated by ${signal}`);
+      // 🎧 ÉCOUTE DES SIGNAUX D'ARRÊT
+      process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+      process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-    try {
-      // Arrêter d'accepter de nouvelles connexions
-      if (this.server) {
-        this.server.close(() => {
-          logger.info('HTTP server closed');
-        });
-      }
-
-      logger.info('Graceful shutdown completed');
-      process.exit(0);
-    } catch (error) {
-      logger.error('Error during graceful shutdown', {
-        error: error.message
+      // 🚨 GESTION DES ERREURS NON CAPTURÉES
+      process.on('uncaughtException', (error) => {
+        logger.error('Uncaught Exception:', error);
+        gracefulShutdown('uncaughtException');
       });
+
+      process.on('unhandledRejection', (reason, promise) => {
+        logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+        gracefulShutdown('unhandledRejection');
+      });
+
+      return server;
+
+    } catch (error) {
+      logger.error('Failed to start Payment Service:', error);
       process.exit(1);
     }
   }
 }
 
-// Démarrer le serveur si ce fichier est exécuté directement
+// ========================================
+// 🚀 DÉMARRAGE DU SERVICE
+// ========================================
+
+// Démarrage du serveur si ce fichier est exécuté directement
 if (require.main === module) {
-  const server = new PaymentServer();
-  server.start().catch(error => {
-    logger.error('Failed to start server:', error);
-    process.exit(1);
-  });
+  const paymentServer = new PaymentServer();
+  paymentServer.start();
 }
 
+// Export pour les tests
 module.exports = PaymentServer;

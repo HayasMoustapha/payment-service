@@ -1,15 +1,15 @@
-# 📄 Payment Service - Documentation Complète
+# � Payment Service - Service Technique de Paiement
 
 ## 🎯 Vue d'Ensemble
 
-Le **Payment Service** est un microservice Node.js/Express qui gère toutes les opérations de paiement pour la plateforme Event Planner. Il offre une abstraction unifiée pour multiple fournisseurs de paiement (Stripe, PayPal, CinetPay, MTN Mobile Money, etc.) avec gestion automatique des secours et des webhooks.
+Le **Payment Service** est un microservice Node.js/Express technique qui gère toutes les opérations de paiement pour la plateforme Event Planner. Il offre une abstraction unifiée pour multiple fournisseurs de paiement (Stripe, PayPal, CinetPay, MTN Mobile Money, etc.) avec gestion automatique des secours et des webhooks.
 
-### 🏗️ Architecture
+### 🏗️ Architecture Technique
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Client API    │───▶│  Payment Service │───▶│  Passerelles    │
-│   (Frontend)    │    │   (Ce Service)   │    │   (Stripe, etc) │
+│   Core Service  │───▶│  Payment Service │───▶│  Passerelles    │
+│   (Orchestration)│   │   (Ce Service)   │    │   (Stripe, etc) │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                               │
                               ▼
@@ -20,19 +20,35 @@ Le **Payment Service** est un microservice Node.js/Express qui gère toutes les 
                        └─────────────────┘
 ```
 
-## 🚀 Fonctionnalités Principales
+## � Rôle Technique
 
-### 💳 Gestion des Paiements
-- **Multi-passerelles** : Stripe, PayPal, CinetPay, MTN Mobile Money, Orange Money
+### ✅ Responsabilités Techniques
+- **Traitement des paiements** : Exécution des transactions via gateways
+- **Intégration multi-passereles** : Stripe, PayPal, CinetPay, Mobile Money
+- **Gestion des wallets** : Opérations techniques sur les wallets
+- **Remboursements** : Traitement technique des remboursements
+- **Factures** : Génération technique des factures
+- **Webhooks** : Réception et traitement des webhooks externes
+
+### ❌ Hors Périmètre
+- **Logique métier** : Définie par event-planner-core
+- **Authentification** : Gérée par event-planner-core
+- **Gestion utilisateurs** : Déléguée à auth-service
+- **Validation métier** : Gérée par event-planner-core
+
+## 🚀 Fonctionnalités Techniques
+
+### 💳 Traitement des Paiements
+- **Multi-passereles** : Stripe, PayPal, CinetPay, MTN Mobile Money, Orange Money
 - **Sélection automatique** : Choix de la meilleure passerelle selon montant, devise, pays
 - **Gestion des secours** : Basculement automatique vers une autre passerelle en cas d'échec
 - **Validation cryptographique** : Vérification de l'authenticité des transactions
 
-### 🎫 Types de Transactions
-- **Vente de tickets** : Paiements pour les événements
-- **Achat de templates** : Achats de designs pour les organisateurs
-- **Remboursements** : Gestion des remboursements partiels et complets
-- **Payouts** : Versements aux designers et prestataires
+### � Gestion des Wallets
+- **Opérations techniques** : Solde, transactions, statistiques
+- **Retraits** : Traitement des demandes de retrait
+- **Commissions** : Calcul et gestion technique des commissions
+- **Projections** : Projections de revenus et règlements
 
 ### 📡 Webhooks et Notifications
 - **Webhooks sécurisés** : Vérification cryptographique des signatures
@@ -40,7 +56,7 @@ Le **Payment Service** est un microservice Node.js/Express qui gère toutes les 
 - **Gestion des erreurs** : Retry automatique en cas d'échec de webhook
 
 ### 📊 Statistiques et Monitoring
-- **Rapports détaillés** : Statistiques par passerelle, devise, période
+- **Rapports techniques** : Statistiques par passerelle, devise, période
 - **Health checks** : Surveillance de l'état du service et des passerelles
 - **Métriques Prometheus** : Monitoring des performances
 
@@ -48,6 +64,224 @@ Le **Payment Service** est un microservice Node.js/Express qui gère toutes les 
 
 ### Backend
 - **Node.js** : Runtime JavaScript (v18+)
+- **Express** : Framework web
+- **PostgreSQL** : Base de données principale
+- **SQL Natif** : Requêtes directes (pas d'ORM)
+- **Joi** : Validation des données
+
+### Passerelles de Paiement
+- **Stripe** : Cartes de crédit/débit
+- **PayPal** : Portefeuille PayPal
+- **CinetPay** : Paiements africains
+- **MTN Mobile Money** : Mobile Money MTN
+- **Orange Money** : Mobile Money Orange
+
+### Monitoring et Sécurité
+- **Prometheus** : Métriques
+- **Winston** : Logging
+- **Helmet** : Sécurité HTTP
+- **Rate Limiting** : Protection contre les abus
+
+## 📡 API Technique
+
+### Routes Principales
+
+#### 💳 Paiements
+```
+POST /api/payments/process              # Traiter un paiement
+POST /api/payments/templates/purchase    # Acheter un template
+GET  /api/payments/:paymentId/status     # Statut paiement
+GET  /api/payments                       # Liste paiements
+GET  /api/payments/:paymentId            # Détail paiement
+POST /api/payments/:paymentId/cancel     # Annuler paiement
+```
+
+#### 🏦 Wallets
+```
+GET  /api/wallets/balance                # Solde wallet
+GET  /api/wallets/transactions           # Historique transactions
+GET  /api/wallets/statistics             # Statistiques wallet
+POST /api/wallets/withdrawals            # Créer retrait
+GET  /api/wallets/withdrawals            # Liste retraits
+```
+
+#### 💰 Commissions
+```
+GET  /api/wallets/commissions/statistics # Statistiques commissions
+GET  /api/wallets/commissions/user      # Commissions utilisateur
+GET  /api/wallets/commissions/rates      # Taux de commission
+POST /api/wallets/commissions/projections # Projection commission
+```
+
+#### 🔄 Gateways
+```
+POST /api/stripe/charge                  # Paiement Stripe
+POST /api/paypal/payment                 # Paiement PayPal
+POST /api/refunds/create                 # Créer remboursement
+GET  /api/invoices/:id                   # Obtenir facture
+```
+
+#### 🏥 Santé
+```
+GET  /health                             # Santé service
+```
+
+## 🔧 Configuration
+
+### Variables d'Environnement
+
+```bash
+# Service
+PORT=3003
+NODE_ENV=production
+
+# Base de données
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=event_planner_payments
+DB_USER=payment_user
+DB_PASSWORD=secure_password
+
+# Passerelles
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+PAYPAL_CLIENT_ID=...
+PAYPAL_CLIENT_SECRET=...
+CINETPAY_API_KEY=...
+CINETPAY_SECRET_KEY=...
+
+# Sécurité
+CORS_ORIGIN=http://localhost:3000
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+```
+
+## 🚀 Déploiement
+
+### Docker
+```bash
+# Build
+docker build -t payment-service .
+
+# Run
+docker run -p 3003:3003 --env-file .env payment-service
+```
+
+### Docker Compose
+```yaml
+version: '3.8'
+services:
+  payment-service:
+    build: .
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+    depends_on:
+      - postgres
+```
+
+## 📊 Monitoring
+
+### Métriques Prometheus
+- `payment_transactions_total` : Nombre total de transactions
+- `payment_success_rate` : Taux de succès des paiements
+- `payment_gateway_response_time` : Temps de réponse des gateways
+- `payment_errors_total` : Nombre total d'erreurs
+
+### Health Checks
+- `/health` : Santé générale du service
+- `/health/database` : Connexion base de données
+- `/health/gateways` : État des passerelles
+
+## 🔒 Sécurité
+
+### Protection
+- **Rate Limiting** : 100 requêtes/15 minutes
+- **CORS** : Origines autorisées uniquement
+- **Helmet** : En-têtes de sécurité
+- **Validation Joi** : Validation stricte des entrées
+
+### Webhooks
+- **Signature verification** : Vérification cryptographique
+- **Replay protection** : Protection contre les attaques replay
+- **IP whitelisting** : Adresses IP autorisées
+
+## 🔄 Communication Inter-Services
+
+### Appels par event-planner-core
+- **Traitement paiements** : `POST /api/payments/process`
+- **Achat templates** : `POST /api/payments/templates/purchase`
+- **Statuts paiements** : `GET /api/payments/:id/status`
+- **Gestion wallets** : Routes `/api/wallets/*`
+
+### Notifications
+- **Webhooks vers core** : Changements de statut
+- **Events Redis** : Notifications temps réel
+- **Logs centralisés** : Partage des logs
+
+## 📈 Performance
+
+### Optimisations
+- **Connection pooling** : Pool de connexions PostgreSQL
+- **Caching Redis** : Mise en cache des réponses
+- **Compression Gzip** : Compression des réponses
+- **Async processing** : Traitement asynchrone
+
+### Scalabilité
+- **Horizontal scaling** : Plusieurs instances
+- **Load balancing** : Répartition de charge
+- **Database sharding** : Partitionnement des données
+
+## 🚨 Gestion des Erreurs
+
+### Types d'Erreurs
+- **Gateway errors** : Erreurs des passerelles
+- **Validation errors** : Erreurs de validation
+- **Database errors** : Erreurs de base de données
+- **Network errors** : Erreurs réseau
+
+### Stratégies
+- **Retry automatique** : 3 tentatives maximum
+- **Circuit breaker** : Isolation des services défaillants
+- **Fallback** : Basculement vers d'autres passerelles
+- **Logging détaillé** : Traçabilité complète
+
+## 📝 Développement
+
+### Installation
+```bash
+npm install
+npm run dev
+```
+
+### Tests
+```bash
+npm test
+npm run test:coverage
+```
+
+### Linting
+```bash
+npm run lint
+npm run lint:fix
+```
+
+## 🔄 Versioning
+
+### API Versioning
+- **v1** : Version actuelle stable
+- **v2** : En développement (breaking changes)
+
+### Changelog
+- **v1.2.0** : Ajout support CinetPay
+- **v1.1.0** : Amélioration gestion wallets
+- **v1.0.0** : Version initiale
+
+---
+
+**Note** : Ce service est purement technique. Toute logique métier doit être implémentée dans event-planner-core.
 - **Express.js** : Framework web HTTP
 - **PostgreSQL** : Base de données relationnelle
 - **Joi** : Validation des schémas de données

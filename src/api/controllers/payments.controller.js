@@ -1,170 +1,271 @@
-// Importation des modules nécessaires pour le contrôleur de paiements
+/**
+ * 💳 CONTRÔLEUR PAIEMENTS
+ * 
+ * RÔLE : Contrôleur technique pour les opérations de paiement
+ * UTILISATION : Interface entre routes HTTP et services de paiement
+ * 
+ * FONCTIONNEMENT :
+ * - Reçoit les requêtes HTTP validées
+ * - Délègue au service de paiement approprié
+ * - Formate les réponses techniques
+ * - Gère les erreurs de manière standardisée
+ */
+
+// Importation des services techniques
 const paymentService = require('../../core/payments/payment.service'); // Service principal de paiement
 const { 
-  successResponse, // Utilitaire pour les réponses de succès
-  createdResponse, // Utilitaire pour les réponses de création
-  paymentResponse, // Utilitaire pour les réponses de paiement
-  notFoundResponse, // Utilitaire pour les réponses "non trouvé"
-  errorResponse, // Utilitaire pour les réponses d'erreur
-  paymentErrorResponse, // Utilitaire pour les erreurs de paiement
-  providerErrorResponse, // Utilitaire pour les erreurs de fournisseur
-  refundResponse, // Utilitaire pour les réponses de remboursement
-  invoiceResponse // Utilitaire pour les réponses de facture
+  successResponse,     // Réponse succès standardisée
+  createdResponse,     // Réponse création standardisée
+  paymentResponse,     // Réponse paiement spécifique
+  notFoundResponse,    // Réponse 404 standardisée
+  errorResponse,       // Réponse erreur standardisée
+  paymentErrorResponse, // Erreur paiement spécifique
+  providerErrorResponse, // Erreur fournisseur spécifique
+  refundResponse,      // Réponse remboursement spécifique
+  invoiceResponse      // Réponse facture spécifique
 } = require('../../utils/response');
-const logger = require('../../utils/logger'); // Utilitaire pour les logs
+const logger = require('../../utils/logger'); // Utilitaire de logging technique
 
 /**
- * Contrôleur Principal pour les Paiements
- * Ce contrôleur gère toutes les requêtes HTTP liées aux paiements
- * Il fait le lien entre les routes API et le service de paiement
+ * 🏗️ CLASSE CONTRÔLEUR PAIEMENTS
+ * 
+ * Gère toutes les requêtes HTTP liées aux paiements techniques
+ * Fait le lien entre les routes API et les services de paiement
  */
 class PaymentsController {
   /**
-   * Traite une transaction de paiement
-   * C'est la méthode principale pour créer un nouveau paiement
-   * @param {Object} req - Requête HTTP avec les données de paiement
-   * @param {Object} res - Réponse HTTP à renvoyer au client
+   * 🔄 TRAITER UN PAIEMENT
+   * 
+   * Méthode principale pour créer une nouvelle transaction de paiement
+   * @param {Object} req - Requête HTTP avec données de paiement validées
+   * @param {Object} res - Réponse HTTP technique
    */
   async processPayment(req, res) {
     try {
-      // Extraction des données de paiement depuis le corps de la requête
+      // 📥 EXTRACTION DES DONNÉES TECHNIQUES
       const {
-        amount, // Montant du paiement en centimes
-        currency = 'EUR', // Devise, EUR par défaut
-        paymentMethod, // Méthode de paiement (carte, PayPal, etc.)
-        description, // Description du paiement
-        customerEmail, // Email du client
-        customerName, // Nom du client
-        customerPhone, // Téléphone du client
-        eventId, // ID de l'événement concerné
-        returnUrl, // URL de retour après paiement
-        preferredGateways = [], // Passerelles de paiement préférées
-        metadata = {} // Données additionnelles
+        amount,                    // Montant en centimes
+        currency = 'EUR',          // Devise (EUR par défaut)
+        gateway,                   // Passerelle (stripe, paypal, cinetpay)
+        customerEmail,             // Email client (pour facturation)
+        description,               // Description technique
+        metadata = {}              // Métadonnées techniques
       } = req.body;
       
-      // LOG : Enregistre les informations du paiement pour le débogage
+      // 📝 LOG TECHNIQUE : Traçabilité de la transaction
       logger.payment('Processing payment', {
-        amount, // Montant
-        currency, // Devise
-        paymentMethod, // Méthode
-        eventId, // Événement
-        userId: req.body.userId || 'anonymous' // ID utilisateur ou anonyme
+        amount,
+        currency,
+        gateway,
+        customerEmail,
+        requestId: req.id,
+        timestamp: new Date().toISOString()
       });
 
-      // APPEL DU SERVICE : Traite le paiement via le service de paiement
+      // 🔄 APPEL DU SERVICE DE PAIEMENT
       const result = await paymentService.processPayment({
-        userId: req.body.userId || 'anonymous', // ID utilisateur
-        eventId, // ID événement
-        amount, // Montant
-        currency, // Devise
-        paymentMethod, // Méthode de paiement
-        description, // Description
-        customerEmail, // Email client
-        customerName, // Nom client
-        customerPhone, // Téléphone client
-        returnUrl, // URL retour
-        preferredGateways, // Passerelles préférées
-        metadata: {
-          ...metadata, // Métadonnées existantes
-          userId: req.body.userId || 'anonymous' // ID utilisateur
-        }
+        amount,
+        currency,
+        gateway,
+        customerEmail,
+        description,
+        metadata,
+        requestId: req.id
       });
 
-      // VÉRIFICATION : Si le paiement a échoué
-      if (!result.success) {
-        return res.status(400).json( // Code 400 = Bad Request
-          paymentErrorResponse(result.error, 'PAYMENT_FAILED') // Erreur de paiement
-        );
-      }
-
-      // SUCCÈS : Retourner la réponse de création
-      return res.status(201).json( // Code 201 = Created
-        createdResponse('Payment initiated successfully', result) // Paiement initié
-      );
+      // ✅ RÉPONSE TECHNIQUE SUCCÈS
+      return createdResponse(res, result, 'Payment processed successfully', 'payment');
 
     } catch (error) {
-      // GESTION DES ERREURS : Si quelque chose se passe mal
+      // 🚨 GESTION DES ERREURS TECHNIQUES
       logger.error('Payment processing failed', {
-        error: error.message, // Message d'erreur
-        userId: req.body.userId || 'anonymous' // ID utilisateur
+        error: error.message,
+        stack: error.stack,
+        requestId: req.id
       });
-      
-      // Retourner une erreur 500 = Internal Server Error
-      return res.status(500).json(
-        errorResponse('Payment processing failed', error.message) // Erreur de traitement
-      );
+
+      return paymentErrorResponse(res, error);
     }
   }
 
   /**
-   * Traite l'achat d'un template (design, modèle, etc.)
-   * Similaire à processPayment mais spécifique aux templates
-   * @param {Object} req - Requête HTTP avec les données d'achat
-   * @param {Object} res - Réponse HTTP à renvoyer au client
+   * 🎫 ACHETER UN TEMPLATE
+   * 
+   * Traite l'achat d'un template de manière technique
+   * @param {Object} req - Requête HTTP avec données d'achat
+   * @param {Object} res - Réponse HTTP technique
    */
   async purchaseTemplate(req, res) {
     try {
-      // Extraction des données d'achat de template
-      const {
-        templateId, // ID du template à acheter
-        designerId, // ID du designer qui vend le template
-        amount, // Montant de l'achat
-        currency = 'EUR', // Devise
-        paymentMethod, // Méthode de paiement
-        customerEmail, // Email du client
-        customerName, // Nom du client
-        customerPhone, // Téléphone du client
-        returnUrl, // URL de retour
-        preferredGateways = [], // Passerelles préférées
-        metadata = {} // Métadonnées
-      } = req.body;
-      
-      // LOG : Enregistre les informations d'achat pour le débogage
+      const { templateId, customerEmail, paymentMethod, amount, currency = 'EUR' } = req.body;
+
       logger.payment('Processing template purchase', {
         templateId,
-        designerId,
-        amount,
-        currency,
-        userId: req.body.userId || 'anonymous'
-      });
-
-      const result = await paymentService.processTemplatePurchase({
-        userId: req.body.userId || 'anonymous',
-        templateId,
-        designerId,
-        amount,
-        currency,
-        paymentMethod,
         customerEmail,
-        customerName,
-        customerPhone,
-        returnUrl,
-        preferredGateways,
-        metadata: {
-          ...metadata,
-          userId: req.body.userId || 'anonymous'
-        }
+        paymentMethod,
+        amount,
+        requestId: req.id
       });
 
-      if (!result.success) {
-        return res.status(400).json(
-          paymentErrorResponse(result.error, 'TEMPLATE_PURCHASE_FAILED')
-        );
-      }
+      const result = await paymentService.purchaseTemplate({
+        templateId,
+        customerEmail,
+        paymentMethod,
+        amount,
+        currency,
+        requestId: req.id
+      });
 
-      return res.status(201).json(
-        createdResponse('Template purchase initiated successfully', result)
-      );
+      return createdResponse(res, result, 'Template purchased successfully', 'template_purchase');
 
     } catch (error) {
       logger.error('Template purchase failed', {
         error: error.message,
-        userId: req.body.userId || 'anonymous'
+        templateId: req.body.templateId,
+        requestId: req.id
       });
-      
-      return res.status(500).json(
-        errorResponse('Template purchase failed', error.message)
-      );
+
+      return paymentErrorResponse(res, error);
+    }
+  }
+
+  /**
+   * 📊 STATUT PAIEMENT
+   * 
+   * Récupère le statut technique d'un paiement
+   * @param {Object} req - Requête HTTP avec ID paiement
+   * @param {Object} res - Réponse HTTP technique
+   */
+  async getPaymentStatus(req, res) {
+    try {
+      const { paymentId } = req.params;
+
+      logger.payment('Getting payment status', {
+        paymentId,
+        requestId: req.id
+      });
+
+      const status = await paymentService.getPaymentStatus(paymentId);
+
+      return successResponse(res, status, 'Payment status retrieved successfully');
+
+    } catch (error) {
+      logger.error('Failed to get payment status', {
+        error: error.message,
+        paymentId: req.params.paymentId,
+        requestId: req.id
+      });
+
+      return errorResponse(res, error, 'Failed to get payment status');
+    }
+  }
+
+  /**
+   * 📋 LISTE PAIEMENTS
+   * 
+   * Récupère une liste technique de paiements
+   * @param {Object} req - Requête HTTP avec filtres
+   * @param {Object} res - Réponse HTTP technique
+   */
+  async getPayments(req, res) {
+    try {
+      const { customerId, status, gateway, limit = 20, offset = 0 } = req.query;
+
+      logger.payment('Getting payments list', {
+        customerId,
+        status,
+        gateway,
+        limit,
+        offset,
+        requestId: req.id
+      });
+
+      const payments = await paymentService.getPayments({
+        customerId,
+        status,
+        gateway,
+        limit: parseInt(limit),
+        offset: parseInt(offset)
+      });
+
+      return successResponse(res, payments, 'Payments retrieved successfully');
+
+    } catch (error) {
+      logger.error('Failed to get payments', {
+        error: error.message,
+        query: req.query,
+        requestId: req.id
+      });
+
+      return errorResponse(res, error, 'Failed to get payments');
+    }
+  }
+
+  /**
+   * 🔍 DÉTAIL PAIEMENT
+   * 
+   * Récupère les détails techniques d'un paiement
+   * @param {Object} req - Requête HTTP avec ID paiement
+   * @param {Object} res - Réponse HTTP technique
+   */
+  async getPaymentDetails(req, res) {
+    try {
+      const { paymentId } = req.params;
+
+      logger.payment('Getting payment details', {
+        paymentId,
+        requestId: req.id
+      });
+
+      const details = await paymentService.getPaymentDetails(paymentId);
+
+      return successResponse(res, details, 'Payment details retrieved successfully');
+
+    } catch (error) {
+      logger.error('Failed to get payment details', {
+        error: error.message,
+        paymentId: req.params.paymentId,
+        requestId: req.id
+      });
+
+      return notFoundResponse(res, 'Payment not found');
+    }
+  }
+
+  /**
+   * ❌ ANNULER PAIEMENT
+   * 
+   * Annule un paiement en attente de manière technique
+   * @param {Object} req - Requête HTTP avec données d'annulation
+   * @param {Object} res - Réponse HTTP technique
+   */
+  async cancelPayment(req, res) {
+    try {
+      const { paymentId } = req.params;
+      const { reason, refundAmount } = req.body;
+
+      logger.payment('Cancelling payment', {
+        paymentId,
+        reason,
+        refundAmount,
+        requestId: req.id
+      });
+
+      const result = await paymentService.cancelPayment(paymentId, {
+        reason,
+        refundAmount
+      });
+
+      return successResponse(res, result, 'Payment cancelled successfully');
+
+    } catch (error) {
+      logger.error('Failed to cancel payment', {
+        error: error.message,
+        paymentId: req.params.paymentId,
+        requestId: req.id
+      });
+
+      return errorResponse(res, error, 'Failed to cancel payment');
     }
   }
 
@@ -222,34 +323,6 @@ class PaymentsController {
   }
 
   /**
-   * Get payment status
-   */
-  async getPaymentStatus(req, res) {
-    try {
-      const { transactionId } = req.params;
-      const { userId } = req.query;
-      
-      logger.payment('Getting payment status', {
-        transactionId,
-        userId: userId || 'anonymous'
-      });
-
-      const result = await paymentService.getPaymentStatus(transactionId);
-
-      if (!result.success) {
-        return res.status(404).json(
-          notFoundResponse('Payment transaction not found', result.error)
-        );
-      }
-
-      return res.status(200).json(
-        successResponse('Payment status retrieved', result)
-      );
-
-    } catch (error) {
-      logger.error('Payment status retrieval failed', {
-        error: error.message,
-        transactionId: req.params.transactionId
       });
       
       return res.status(500).json(
