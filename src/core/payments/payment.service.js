@@ -2,7 +2,7 @@
 const gatewayManager = require('../providers/gateway.manager'); // Gestionnaire des passerelles de paiement (Stripe, PayPal, etc.)
 const { query } = require("../../utils/database-wrapper"); // Utilitaire pour exécuter des requêtes SQL
 const logger = require("../../utils/logger"); // Utilitaire pour écrire des logs dans la console
-const coreClient = require("../../../../../shared/clients/core-client"); // Client pour communiquer avec le service Core
+const coreClient = require("../../../../shared/clients/core-client"); // Client pour communiquer avec le service Core
 
 /**
  * Service de Paiement Principal
