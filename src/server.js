@@ -56,6 +56,13 @@ try {
 }
 
 try {
+  webhookRetryRoutes = require('./api/routes/webhook-retry.routes');
+} catch (error) {
+  logger.error('Failed to load webhook-retry routes:', error);
+  webhookRetryRoutes = express.Router(); // Router vide
+}
+
+try {
   paypalRoutes = require('./api/routes/paypal.routes');
 } catch (error) {
   logger.error('Failed to load paypal routes:', error);
@@ -120,6 +127,9 @@ class PaymentServer {
       this.app.use('/api/refunds', refundsRoutes);
       this.app.use('/api/paypal', paypalRoutes);
       this.app.use('/api/stripe', stripeRoutes);
+      
+      // Routes de monitoring et maintenance
+      this.app.use('/api/webhooks/retry', webhookRetryRoutes);
 
       // Route de test
       this.app.get('/', (req, res) => {

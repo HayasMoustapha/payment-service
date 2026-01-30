@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const logger = require('../../utils/logger');
+const webhookRetryService = require('./core/webhooks/webhook-retry.service');
 
 /**
  * Controller pour le service de paiement
@@ -570,12 +571,28 @@ async function emitPaymentWebhook(paymentIntentId, status, data) {
   } catch (error) {
     console.error(`[PAYMENT_CONTROLLER] Erreur envoi webhook à Event-Planner-Core:`, error.message);
     
-    // En cas d'erreur, on log mais on ne bloque pas le flow
-    // Le webhook pourra être retryé plus tard
+    // Ajouter à la queue de retry
+    const webhookData = {
+      status: status,
+      data: {
+        ...data,
+        payment_service_id: data.payment_service_id,
+        gateway: data.gateway || 'stripe',
+        amount: data.amount,
+        currency: data.currency || 'EUR',
+        completed_at: data.completed_at || new Date().toISOString(),
+        error_message: data.error_message || null
+      }
+    };
+    
+    const retryAdded = webhookRetryService.addToRetryQueue(paymentIntentId, webhookData);
+    
     return {
       success: false,
       error: error.message,
-      willRetry: true
+      willRetry: retryAdded,
+      retryAttempt: retryAdded ? 1 : null,
+      maxRetries: webhookRetryService.maxRetries
     };
   }
 }
