@@ -189,4 +189,9 @@ if (require.main === module) {
   });
 }
 
+// Export de la classe pour utilisation directe
 module.exports = PaymentServer;
+
+// Export de l'app Express pour les tests
+const testServerInstance = new PaymentServer();
+module.exports.app = testServerInstance.app;

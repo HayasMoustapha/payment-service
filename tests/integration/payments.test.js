@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('../../src/server');
+const { app } = require('../../src/server');
 
 describe('Payments API Integration Tests', () => {
   let testCustomerId = 'cus_test123';
