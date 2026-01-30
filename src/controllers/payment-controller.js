@@ -1,3 +1,6 @@
+const crypto = require('crypto');
+const logger = require('../../utils/logger');
+
 /**
  * Controller pour le service de paiement
  * Gère les endpoints HTTP pour les opérations de paiement avec Stripe/PayPal
@@ -7,7 +10,7 @@
  * - Intégration Stripe et PayPal
  * - Gestion des paiements et refunds
  * - Génération de factures PDF
- * - Webhooks pour les callbacks
+ * - Webhooks pour les callbacks ET communication avec Event-Planner-Core
  */
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -510,9 +513,86 @@ async function updatePaymentStatusByIntentId(paymentIntentId, updateData) {
   console.log(`[PAYMENT_CONTROLLER] Mise à jour statut par intent ${paymentIntentId}: ${updateData.status}`);
 }
 
+/**
+ * Émet un webhook vers Event-Planner-Core pour informer du statut du paiement
+ * @param {string} paymentIntentId - ID de l'intention de paiement
+ * @param {string} status - Statut du paiement (completed, failed, canceled)
+ * @param {Object} data - Données supplémentaires du paiement
+ */
 async function emitPaymentWebhook(paymentIntentId, status, data) {
-  // TODO: Implémenter l'émission du webhook vers event-planner-core
-  console.log(`[PAYMENT_CONTROLLER] Émission webhook ${paymentIntentId}: ${status}`);
+  try {
+    const EVENT_CORE_SERVICE_URL = process.env.EVENT_CORE_SERVICE_URL || 'http://localhost:3001';
+    
+    const webhookPayload = {
+      eventType: `payment.${status}`,
+      paymentIntentId: paymentIntentId,
+      status: status,
+      timestamp: new Date().toISOString(),
+      data: {
+        ...data,
+        source: 'payment-service',
+        payment_service_id: data.payment_service_id,
+        gateway: data.gateway || 'stripe',
+        amount: data.amount,
+        currency: data.currency || 'EUR',
+        completed_at: data.completed_at || new Date().toISOString(),
+        error_message: data.error_message || null
+      }
+    };
+    
+    console.log(`[PAYMENT_CONTROLLER] Envoi webhook à Event-Planner-Core: ${paymentIntentId} -> ${status}`);
+    
+    const response = await fetch(`${EVENT_CORE_SERVICE_URL}/api/internal/payment-webhook`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Service-Name': 'payment-service',
+        'X-Request-ID': `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        'X-Timestamp': new Date().toISOString(),
+        'X-Webhook-Signature': generateWebhookSignature(webhookPayload)
+      },
+      body: JSON.stringify(webhookPayload)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Event-Planner-Core responded with ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    console.log(`[PAYMENT_CONTROLLER] Webhook accepté par Event-Planner-Core:`, result);
+    
+    return {
+      success: true,
+      webhookId: result.webhookId || paymentIntentId,
+      processedAt: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error(`[PAYMENT_CONTROLLER] Erreur envoi webhook à Event-Planner-Core:`, error.message);
+    
+    // En cas d'erreur, on log mais on ne bloque pas le flow
+    // Le webhook pourra être retryé plus tard
+    return {
+      success: false,
+      error: error.message,
+      willRetry: true
+    };
+  }
+}
+
+/**
+ * Génère une signature pour le webhook
+ * @param {Object} payload - Données du webhook
+ * @returns {string} Signature HMAC-SHA256
+ */
+function generateWebhookSignature(payload) {
+  const webhookSecret = process.env.WEBHOOK_SECRET || 'default-webhook-secret';
+  const payloadString = JSON.stringify(payload);
+  
+  return crypto
+    .createHmac('sha256', webhookSecret)
+    .update(payloadString, 'utf8')
+    .digest('hex');
 }
 
 function getPayPalEnvironment() {
