@@ -855,16 +855,33 @@ class StripeService {
    */
   async healthCheck() {
     try {
+      if (this.mockMode) {
+        return {
+          success: true,
+          healthy: true,
+          status: 'healthy',
+          timestamp: new Date().toISOString(),
+          service: 'stripe',
+          mode: 'mock',
+          message: 'Service en mode mock (tests)'
+        };
+      }
+
       // Simple health check - try to retrieve account info
       await stripe.accounts.retrieve();
 
       return {
+        success: true,
+        healthy: true,
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        service: 'stripe'
+        service: 'stripe',
+        mode: 'production'
       };
     } catch (error) {
       return {
+        success: false,
+        healthy: false,
         status: 'unhealthy',
         error: error.message,
         timestamp: new Date().toISOString(),
