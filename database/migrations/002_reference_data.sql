@@ -5,6 +5,62 @@
 -- Version IDEMPOTENTE - Généré le 2026-01-26
 
 -- ========================================
+-- PASSERELLES DE PAIEMENT PAR DÉFAUT (IDEMPOTENT)
+-- ========================================
+INSERT INTO payment_gateways (name, code, is_active, config, supported_currencies, supported_countries, min_amount, max_amount) VALUES
+(
+  'Stripe',
+  'stripe',
+  true,
+  '{"publishable_key": "pk_test_...", "secret_key": "sk_test_...", "webhook_secret": "whsec_..."}',
+  ARRAY['EUR', 'USD', 'GBP', 'CHF'],
+  ARRAY['FR', 'US', 'GB', 'DE', 'ES', 'IT', 'CH', 'BE', 'NL', 'LU'],
+  0.50,
+  100000.00
+),
+(
+  'PayPal',
+  'paypal', 
+  true,
+  '{"client_id": "...", "client_secret": "...", "webhook_id": "..."}',
+  ARRAY['EUR', 'USD', 'GBP'],
+  ARRAY['FR', 'US', 'GB', 'DE', 'ES', 'IT', 'BE', 'NL'],
+  1.00,
+  50000.00
+),
+(
+  'CinetPay',
+  'cinetpay',
+  true,
+  '{"api_key": "...", "site_id": "...", "secret_key": "..."}',
+  ARRAY['XOF', 'XAF', 'EUR', 'USD'],
+  ARRAY['CI', 'SN', 'ML', 'BF', 'NE', 'TG', 'BJ', 'CM', 'GA', 'CD'],
+  100.00,
+  1000000.00
+),
+(
+  'MTN Mobile Money',
+  'mtn_momo',
+  true,
+  '{"api_key": "...", "api_user": "...", "api_secret": "..."}',
+  ARRAY['XOF', 'XAF', 'UGX', 'GHS', 'ZMW', 'MWK'],
+  ARRAY['CI', 'CM', 'UG', 'GH', 'ZM', 'MW', 'TZ', 'RW', 'KE'],
+  100.00,
+  500000.00
+),
+(
+  'Orange Money',
+  'orange_money',
+  false, -- Désactivé pour le moment
+  '{"api_key": "...", "api_secret": "..."}',
+  ARRAY['XOF', 'XAF'],
+  ARRAY['CI', 'SN', 'ML', 'BF', 'NE', 'TG', 'BJ', 'CM'],
+  100.00,
+  300000.00
+)
+ON CONFLICT (code) DO NOTHING;
+
+-- ========================================
 -- Vue pour valider les références externes (IDEMPOTENT)
 -- ========================================
 CREATE OR REPLACE VIEW external_references_validation AS

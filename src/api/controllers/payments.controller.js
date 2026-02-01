@@ -323,15 +323,6 @@ class PaymentsController {
   }
 
   /**
-      });
-      
-      return res.status(500).json(
-        errorResponse('Payment status retrieval failed', error.message)
-      );
-    }
-  }
-
-  /**
    * Get payment statistics
    */
   async getPaymentStatistics(req, res) {

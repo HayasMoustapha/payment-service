@@ -1,6 +1,6 @@
 // Importation des modules nécessaires pour le service de paiement
 const gatewayManager = require('../providers/gateway.manager'); // Gestionnaire des passerelles de paiement (Stripe, PayPal, etc.)
-const { query } = require("../../utils/database-wrapper"); // Utilitaire pour exécuter des requêtes SQL
+const databaseWrapper = require("../../utils/database-wrapper"); // Utilitaire pour exécuter des requêtes SQL
 const logger = require("../../utils/logger"); // Utilitaire pour écrire des logs dans la console
 const coreClient = require("../../../../shared/clients/core-client"); // Client pour communiquer avec le service Core
 
@@ -184,7 +184,7 @@ class PaymentService {
    * @param {Object} templateData - Données d'achat du template
    * @returns {Promise<Object>} - Résultat de l'achat du template
    */
-  async processTemplatePurchase(templateData) {
+  async purchaseTemplate(templateData) {
     // S'assure que le service est initialisé
     await this.initialize();
 
@@ -515,7 +515,7 @@ class PaymentService {
       JSON.stringify(transactionData.metadata)
     ];
 
-    const result = await query(query, values);
+    const result = await databaseWrapper.query(query, values);
     return result.rows[0];
   }
 
@@ -548,7 +548,7 @@ class PaymentService {
       RETURNING *
     `;
 
-    const result = await query(query, values);
+    const result = await databaseWrapper.query(query, values);
     return result.rows[0];
   }
 
@@ -595,7 +595,7 @@ class PaymentService {
       commissionType
     ];
 
-    const result = await query(query, values);
+    const result = await databaseWrapper.query(query, values);
     return result.rows[0];
   }
 
@@ -639,7 +639,7 @@ class PaymentService {
     // Update wallet balance
     await this.updateWalletBalance(wallet.id, newBalance);
 
-    const result = await query(query, values);
+    const result = await databaseWrapper.query(query, values);
     return result.rows[0];
   }
 
@@ -655,7 +655,7 @@ class PaymentService {
       SELECT * FROM wallets WHERE user_id = $1 AND user_type = $2
     `;
     
-    const getResult = await query(getQuery, [userId, userType]);
+    const getResult = await databaseWrapper.query(getQuery, [userId, userType]);
     
     if (getResult.rows.length > 0) {
       return getResult.rows[0];
@@ -668,7 +668,7 @@ class PaymentService {
       RETURNING *
     `;
 
-    const createResult = await query(createQuery, [userId, userType]);
+    const createResult = await databaseWrapper.query(createQuery, [userId, userType]);
     return createResult.rows[0];
   }
 
@@ -686,7 +686,7 @@ class PaymentService {
       RETURNING *
     `;
 
-    const result = await query(query, [newBalance, walletId]);
+    const result = await databaseWrapper.query(query, [newBalance, walletId]);
     return result.rows[0];
   }
 
@@ -829,7 +829,7 @@ class PaymentService {
     `;
 
     // Exécuter la requête statistique
-    const result = await query(query, values);
+    const result = await databaseWrapper.query(query, values);
     
     // Retourner les résultats avec les statistiques des passerelles
     return {
@@ -869,7 +869,7 @@ class PaymentService {
     `;
     
     // Exécuter la requête avec l'ID de transaction
-    const result = await query(queryText, [transactionId]);
+    const result = await databaseWrapper.query(queryText, [transactionId]);
     
     // Si aucune transaction trouvée
     if (result.rows.length === 0) {
@@ -890,6 +890,214 @@ class PaymentService {
       created_at: transaction.created_at,
       updated_at: transaction.updated_at
     };
+  }
+
+  /**
+   * Récupère une liste de paiements avec filtres
+   * @param {Object} options - Options de filtrage
+   * @returns {Promise<Object>} - Liste des paiements et pagination
+   */
+  async getPayments(options = {}) {
+    await this.initialize();
+
+    if (this.mockMode) {
+      return {
+        payments: [
+          {
+            id: 'mock_tx_1',
+            amount: 2500,
+            currency: 'EUR',
+            status: 'completed',
+            payment_method: 'stripe',
+            created_at: new Date().toISOString()
+          }
+        ],
+        pagination: {
+          total: 1,
+          page: 1,
+          limit: 20,
+          totalPages: 1
+        }
+      };
+    }
+
+    const { customerId, status, gateway, limit = 20, offset = 0 } = options;
+    
+    let whereClause = 'WHERE 1=1';
+    const values = [];
+    let paramCount = 1;
+
+    if (customerId) {
+      whereClause += ` AND user_id = $${paramCount}`;
+      values.push(customerId);
+      paramCount++;
+    }
+
+    if (status) {
+      whereClause += ` AND status = $${paramCount}`;
+      values.push(status);
+      paramCount++;
+    }
+
+    if (gateway) {
+      whereClause += ` AND payment_method = $${paramCount}`;
+      values.push(gateway);
+      paramCount++;
+    }
+
+    // Requête principale
+    const query = `
+      SELECT * FROM transactions 
+      ${whereClause}
+      ORDER BY created_at DESC 
+      LIMIT $${paramCount} OFFSET $${paramCount + 1}
+    `;
+
+    values.push(limit, offset);
+
+    // Requête de comptage
+    const countQuery = `
+      SELECT COUNT(*) as total FROM transactions ${whereClause}
+    `;
+
+    const [paymentsResult, countResult] = await Promise.all([
+      databaseWrapper.query(query, values),
+      databaseWrapper.query(countQuery, values.slice(0, -2))
+    ]);
+
+    const total = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      payments: paymentsResult.rows,
+      pagination: {
+        total,
+        page: Math.floor(offset / limit) + 1,
+        limit,
+        totalPages,
+        hasNext: offset + limit < total,
+        hasPrev: offset > 0
+      }
+    };
+  }
+
+  /**
+   * Récupère les détails complets d'un paiement
+   * @param {string} paymentId - ID du paiement
+   * @returns {Promise<Object>} - Détails complets du paiement
+   */
+  async getPaymentDetails(paymentId) {
+    await this.initialize();
+
+    if (this.mockMode) {
+      return {
+        id: paymentId,
+        amount: 2500,
+        currency: 'EUR',
+        status: 'completed',
+        payment_method: 'stripe',
+        provider_transaction_id: 'ch_1234567890',
+        metadata: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    }
+
+    const query = `
+      SELECT * FROM transactions 
+      WHERE id = $1 OR provider_transaction_id = $1
+    `;
+
+    const result = await databaseWrapper.query(query, [paymentId]);
+
+    if (result.rows.length === 0) {
+      throw new Error('Payment not found');
+    }
+
+    return result.rows[0];
+  }
+
+  /**
+   * Annule un paiement
+   * @param {string} paymentId - ID du paiement
+   * @param {Object} options - Options d'annulation
+   * @returns {Promise<Object>} - Résultat de l'annulation
+   */
+  async cancelPayment(paymentId, options = {}) {
+    await this.initialize();
+
+    if (this.mockMode) {
+      return {
+        success: true,
+        paymentId,
+        status: 'cancelled',
+        reason: options.reason || 'User requested cancellation',
+        cancelled_at: new Date().toISOString()
+      };
+    }
+
+    const { reason, refundAmount } = options;
+
+    // Récupérer la transaction
+    const transaction = await this.getPaymentDetails(paymentId);
+
+    if (transaction.status !== 'pending') {
+      throw new Error('Only pending payments can be cancelled');
+    }
+
+    // Mettre à jour le statut
+    const updateQuery = `
+      UPDATE transactions 
+      SET status = 'cancelled', 
+          updated_at = NOW(),
+          metadata = metadata || $2
+      WHERE id = $1
+      RETURNING *
+    `;
+
+    const updateValues = [
+      transaction.id,
+      JSON.stringify({
+        cancellation_reason: reason,
+        cancelled_at: new Date().toISOString(),
+        refund_amount: refundAmount
+      })
+    ];
+
+    const result = await databaseWrapper.query(updateQuery, updateValues);
+
+    // Si un montant de remboursement est spécifié, créer un remboursement
+    if (refundAmount && refundAmount > 0) {
+      await this.createRefund(transaction.id, refundAmount, reason || 'Cancellation refund');
+    }
+
+    return {
+      success: true,
+      paymentId: transaction.id,
+      status: 'cancelled',
+      reason,
+      cancelled_at: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Crée un remboursement
+   * @param {string} transactionId - ID de la transaction
+   * @param {number} amount - Montant à rembourser
+   * @param {string} reason - Raison du remboursement
+   * @returns {Promise<Object>} - Remboursement créé
+   */
+  async createRefund(transactionId, amount, reason) {
+    const query = `
+      INSERT INTO refunds (
+        transaction_id, amount, reason, status, created_at, updated_at
+      )
+      VALUES ($1, $2, $3, 'pending', NOW(), NOW())
+      RETURNING *
+    `;
+
+    const result = await databaseWrapper.query(query, [transactionId, amount, reason]);
+    return result.rows[0];
   }
 }
 

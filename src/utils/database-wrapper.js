@@ -1,4 +1,4 @@
-const { database } = require('../config');
+const { database } = require('../config/database');
 
 /**
  * Database query wrapper to handle Pool queries properly
@@ -15,5 +15,6 @@ async function executeQuery(text, params) {
 
 module.exports = {
   query: executeQuery,
-  database
+  database,
+  connect: () => database.connect()
 };

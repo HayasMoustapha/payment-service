@@ -1,6 +1,6 @@
 // Importation des modules nécessaires pour le gestionnaire de passerelles
 const BaseGateway = require('./base.gateway'); // Classe de base pour toutes les passerelles
-const { query } = require("../../utils/database-wrapper"); // Utilitaire pour exécuter des requêtes SQL
+const databaseWrapper = require("../../utils/database-wrapper"); // Utilitaire pour exécuter des requêtes SQL
 
 /**
  * Gestionnaire de Passerelles de Paiement
@@ -60,7 +60,7 @@ class GatewayManager {
       ORDER BY created_at ASC -- Les plus anciennes en premier
     `;
     
-    const result = await query(query); // Exécute la requête
+    const result = await databaseWrapper.query(query); // Exécute la requête
     return result.rows; // Retourne les lignes trouvées
   }
 
