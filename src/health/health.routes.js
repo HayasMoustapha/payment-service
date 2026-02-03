@@ -224,19 +224,27 @@ router.get('/components/:component', async (req, res) => {
 // GET /health/providers - État des providers de paiement
 router.get('/providers', async (req, res) => {
   try {
-    const [stripeStats, paypalStats] = await Promise.all([
-      stripeService.getStats(),
-      paypalService.getStats()
+    const [stripeHealth, paypalHealth] = await Promise.all([
+      stripeService.healthCheck(),
+      paypalService.healthCheck()
     ]);
+
+    const stripeConfig = stripeService.getConfig ? stripeService.getConfig() : {};
+    const paypalConfig = paypalService.getConfig ? paypalService.getConfig() : {};
+
+    const stripeConfigured = !!(stripeConfig.secretKey || stripeConfig.apiKey || stripeConfig.clientId);
+    const paypalConfigured = !!(paypalConfig.clientId || paypalConfig.clientSecret);
 
     const providers = {
       stripe: {
-        ...stripeStats,
-        healthy: stripeStats.configured
+        ...stripeHealth,
+        configured: stripeConfigured,
+        healthy: stripeHealth.healthy && stripeConfigured
       },
       paypal: {
-        ...paypalStats,
-        healthy: paypalStats.configured
+        ...paypalHealth,
+        configured: paypalConfigured,
+        healthy: paypalHealth.healthy && paypalConfigured
       }
     };
 
@@ -360,8 +368,8 @@ router.post('/test', async (req, res) => {
 router.get('/metrics', async (req, res) => {
   try {
     const [stripeStats, paypalStats, invoiceStats, refundStats] = await Promise.all([
-      stripeService.getStats(),
-      paypalService.getStats(),
+      stripeService.getStats ? stripeService.getStats() : stripeService.healthCheck(),
+      paypalService.getStats ? paypalService.getStats() : paypalService.healthCheck(),
       invoiceService.getStats(),
       refundService.getStats()
     ]);
