@@ -10,71 +10,17 @@ const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
 const morgan = require('morgan');
-const rawBody = require('raw-body');
-
 // Importation des modules locaux
 const logger = require('./utils/logger');
 const healthRoutes = require('./health/health.routes');
 const bootstrap = require('./bootstrap'); // Initialisation de la base de données
 
-// Importation des routes avec gestion d'erreur
-let paymentsRoutes, walletsRoutes, invoicesRoutes, paymentMethodsRoutes, refundsRoutes, paypalRoutes, stripeRoutes;
-
-try {
-  paymentsRoutes = require('./api/routes/payments.routes');
-} catch (error) {
-  logger.error('Failed to load payments routes:', error);
-  paymentsRoutes = express.Router(); // Router vide
-}
-
-try {
-  walletsRoutes = require('./api/routes/wallets.routes');
-} catch (error) {
-  logger.error('Failed to load wallets routes:', error);
-  walletsRoutes = express.Router(); // Router vide
-}
-
-try {
-  invoicesRoutes = require('./api/routes/invoices.routes');
-} catch (error) {
-  logger.error('Failed to load invoices routes:', error);
-  invoicesRoutes = express.Router(); // Router vide
-}
-
-try {
-  paymentMethodsRoutes = require('./api/routes/payment-methods.routes');
-} catch (error) {
-  logger.error('Failed to load payment-methods routes:', error);
-  paymentMethodsRoutes = express.Router(); // Router vide
-}
-
-try {
-  refundsRoutes = require('./api/routes/refunds.routes');
-} catch (error) {
-  logger.error('Failed to load refunds routes:', error);
-  refundsRoutes = express.Router(); // Router vide
-}
-
-try {
-  webhookRetryRoutes = require('./api/routes/webhook-retry.routes');
-} catch (error) {
-  logger.error('Failed to load webhook-retry routes:', error);
-  webhookRetryRoutes = express.Router(); // Router vide
-}
-
-try {
-  paypalRoutes = require('./api/routes/paypal.routes');
-} catch (error) {
-  logger.error('Failed to load paypal routes:', error);
-  paypalRoutes = express.Router(); // Router vide
-}
-
-try {
-  stripeRoutes = require('./api/routes/stripe.routes');
-} catch (error) {
-  logger.error('Failed to load stripe routes:', error);
-  stripeRoutes = express.Router(); // Router vide
-}
+const paymentsRoutes = require('./api/routes/payments.routes');
+const gatewaysRoutes = require('./api/routes/payment-gateways.routes');
+const commissionsRoutes = require('./api/routes/commissions.routes');
+const refundsRoutes = require('./api/routes/refunds.routes');
+const walletsRoutes = require('./api/routes/wallets.routes');
+const withdrawalsRoutes = require('./api/routes/withdrawals.routes');
 
 class PaymentServer {
   constructor() {
@@ -100,36 +46,16 @@ class PaymentServer {
       this.app.use(express.urlencoded({ extended: true }));
       this.app.use(morgan('combined'));
 
-      // Middleware pour raw body (webhooks)
-      this.app.use('/api/webhooks', (req, res, next) => {
-        if (req.is('application/json')) {
-          rawBody(req, {
-            encoding: 'utf8',
-            limit: '1mb'
-          }, (err, body) => {
-            if (err) return next(err);
-            req.rawBody = body;
-            next();
-          });
-        } else {
-          next();
-        }
-      });
-
       // Routes de base
       this.app.use('/health', healthRoutes);
 
       // Routes API avec gestion d'erreur
       this.app.use('/api/payments', paymentsRoutes);
+      this.app.use('/api/payment-gateways', gatewaysRoutes);
+      this.app.use('/api/commissions', commissionsRoutes);
       this.app.use('/api/wallets', walletsRoutes);
-      this.app.use('/api/invoices', invoicesRoutes);
-      this.app.use('/api/payment-methods', paymentMethodsRoutes);
       this.app.use('/api/refunds', refundsRoutes);
-      this.app.use('/api/paypal', paypalRoutes);
-      this.app.use('/api/stripe', stripeRoutes);
-      
-      // Routes de monitoring et maintenance
-      this.app.use('/api/webhooks/retry', webhookRetryRoutes);
+      this.app.use('/api/withdrawals', withdrawalsRoutes);
 
       // Route de test
       this.app.get('/', (req, res) => {

@@ -1,119 +1,81 @@
-/**
- * 💳 ROUTES PAIEMENTS
- * 
- * RÔLE : Traitement technique des paiements
- * UTILISATION : Service technique pour les transactions financières
- * 
- * NOTE : Service technique sans authentification
- * La sécurité est gérée par event-planner-core
- */
-
 const express = require('express');
-const Joi = require('joi');
 const router = express.Router();
-const paymentsController = require('../controllers/payments.controller');
+const controller = require('../controllers/payments.controller');
 const { ValidationMiddleware } = require('../../../../shared');
-const paymentErrorHandler = require('../../error/payment.errorHandler');
 
-// ========================================
-// 🚨 GESTIONNAIRE D'ERREURS
-// ========================================
-// Capture les erreurs spécifiques aux paiements
-router.use(paymentErrorHandler);
+router.get('/', ValidationMiddleware.createPaymentServiceValidator('listPayments'), controller.list);
 
-// ========================================
-// 💰 TRAITEMENT DES PAIEMENTS
-// ========================================
+router.get('/:paymentId', ValidationMiddleware.validateParams({
+  paymentId: ValidationMiddleware.schemas.id.required()
+}), controller.get);
 
-/**
- * 🔄 TRAITER UN PAIEMENT
- * POST /api/payments/process
- * Crée une nouvelle transaction de paiement
- */
-router.post('/process', 
-  ValidationMiddleware.validate(Joi.object({
-    amount: Joi.number().positive().required(),
-    currency: Joi.string().default('eur'),
-    gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').required(),
-    customerEmail: Joi.string().email().required(),
-    description: Joi.string().required(),
-    metadata: Joi.object().optional()
-  })),
-  paymentsController.processPayment
-);
+router.post('/', ValidationMiddleware.createPaymentServiceValidator('createPayment'), controller.create);
 
-/**
- * 🎫 ACHETER UN TEMPLATE
- * POST /api/payments/templates/purchase
- * Achète un template (design, modèle, etc.)
- */
-router.post('/templates/purchase', 
-  ValidationMiddleware.validate(Joi.object({
-    templateId: Joi.string().required(),
-    customerEmail: Joi.string().email().required(),
-    paymentMethod: Joi.string().required(),
-    amount: Joi.number().positive().optional(),
-    currency: Joi.string().default('eur')
-  })),
-  paymentsController.purchaseTemplate
-);
-
-/**
- * 📊 STATUT PAIEMENT
- * GET /api/payments/:paymentId/status
- * Récupère le statut d'un paiement
- */
-router.get('/:paymentId/status', 
+router.patch(
+  '/:paymentId/status',
   ValidationMiddleware.validateParams({
-    paymentId: Joi.string().required()
+    paymentId: ValidationMiddleware.schemas.id.required()
   }),
-  paymentsController.getPaymentStatus
+  ValidationMiddleware.createPaymentServiceValidator('updatePaymentStatus'),
+  controller.updateStatus
 );
 
-/**
- * 📋 LISTE PAIEMENTS
- * GET /api/payments
- * Récupère la liste des paiements
- */
-router.get('/', 
-  ValidationMiddleware.validateQuery(Joi.object({
-    customerId: Joi.string().optional(),
-    status: Joi.string().valid('pending', 'completed', 'failed', 'cancelled').optional(),
-    gateway: Joi.string().valid('stripe', 'paypal', 'cinetpay').optional(),
-    limit: Joi.number().integer().min(1).max(100).default(20),
-    offset: Joi.number().integer().min(0).default(0)
-  })),
-  paymentsController.getPayments
-);
+// ========================================
+// ROUTES MANQUANTES POUR LES TEMPLATES EMAIL
+// ========================================
 
 /**
- * 🔍 DÉTAIL PAIEMENT
- * GET /api/payments/:paymentId
- * Récupère le détail d'un paiement
+ * @swagger
+ * /payments/invoices/{invoiceId}:
+ *   get:
+ *     summary: Télécharger une facture
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: invoiceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Fichier PDF de la facture
+ *       404:
+ *         description: Facture non trouvée
  */
-router.get('/:paymentId', 
+router.get('/invoices/:invoiceId', 
   ValidationMiddleware.validateParams({
-    paymentId: Joi.string().required()
+    invoiceId: ValidationMiddleware.schemas.string.required()
   }),
-  paymentsController.getPaymentDetails
+  controller.downloadInvoice
 );
 
 /**
- * ❌ ANNULER PAIEMENT
- * POST /api/payments/:paymentId/cancel
- * Annule un paiement en attente
+ * @swagger
+ * /payments/retry/{transactionId}:
+ *   post:
+ *     summary: Réessayer un paiement échoué
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: transactionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Paiement réessayé
+ *       404:
+ *         description: Transaction non trouvée
  */
-router.post('/:paymentId/cancel', 
+router.post('/retry/:transactionId', 
   ValidationMiddleware.validateParams({
-    paymentId: Joi.string().required()
+    transactionId: ValidationMiddleware.schemas.string.required()
   }),
-  ValidationMiddleware.validate({
-    body: Joi.object({
-      reason: Joi.string().optional(),
-      refundAmount: Joi.number().positive().optional()
-    })
-  }),
-  paymentsController.cancelPayment
+  controller.retryPayment
 );
 
 module.exports = router;
