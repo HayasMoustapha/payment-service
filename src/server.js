@@ -42,7 +42,12 @@ class PaymentServer {
       // Configuration de base
       this.app.use(cors());
       this.app.use(compression());
-      this.app.use(express.json({ limit: '10mb' }));
+      this.app.use(express.json({
+        limit: '10mb',
+        verify: (req, res, buf) => {
+          req.rawBody = buf;
+        }
+      }));
       this.app.use(express.urlencoded({ extended: true }));
       this.app.use(morgan('combined'));
 

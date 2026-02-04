@@ -1,3 +1,8 @@
+-- ========================================
+-- PAYMENT SERVICE - Add missing gateways
+-- ========================================
+-- Purpose: ensure all providers from spec are seeded even if previous seed already ran
+
 INSERT INTO payment_gateways (name, code, is_active, config)
 VALUES
   ('Stripe', 'stripe', true, '{}'::jsonb),

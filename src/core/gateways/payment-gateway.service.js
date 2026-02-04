@@ -14,6 +14,11 @@ class PaymentGatewayService {
     return result.rows[0] || null;
   }
 
+  async getGatewayByCode(code) {
+    const result = await query('SELECT * FROM payment_gateways WHERE code = $1', [code]);
+    return result.rows[0] || null;
+  }
+
   async createGateway({ name, code, is_active = true, config = {} }) {
     const result = await query(
       `INSERT INTO payment_gateways (name, code, is_active, config)
