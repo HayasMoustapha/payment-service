@@ -6,8 +6,23 @@
 -- Types (idempotent)
 DO $$ BEGIN
     CREATE TYPE payment_status AS ENUM ('pending', 'completed', 'failed', 'refunded');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
     CREATE TYPE commission_type AS ENUM ('template_sale', 'ticket_sale');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
     CREATE TYPE refund_status AS ENUM ('pending', 'approved', 'rejected');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
     CREATE TYPE withdrawal_status AS ENUM ('pending', 'processing', 'completed', 'failed');
 EXCEPTION
     WHEN duplicate_object THEN null;

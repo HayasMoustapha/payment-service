@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/payments.controller');
+const Joi = require('joi');
 const { ValidationMiddleware } = require('../../../../shared');
 
 router.get('/', ValidationMiddleware.createPaymentServiceValidator('listPayments'), controller.list);
@@ -20,61 +21,21 @@ router.patch(
   controller.updateStatus
 );
 
-// ========================================
-// ROUTES MANQUANTES POUR LES TEMPLATES EMAIL
-// ========================================
-
-/**
- * @swagger
- * /payments/invoices/{invoiceId}:
- *   get:
- *     summary: Télécharger une facture
- *     tags: [Payments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: invoiceId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Fichier PDF de la facture
- *       404:
- *         description: Facture non trouvée
- */
-router.get('/invoices/:invoiceId', 
+// New routes for email templates
+router.get(
+  '/invoices/:invoiceId',
   ValidationMiddleware.validateParams({
-    invoiceId: ValidationMiddleware.schemas.string.required()
+    invoiceId: Joi.string().required()
   }),
   controller.downloadInvoice
 );
 
-/**
- * @swagger
- * /payments/retry/{transactionId}:
- *   post:
- *     summary: Réessayer un paiement échoué
- *     tags: [Payments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: transactionId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Paiement réessayé
- *       404:
- *         description: Transaction non trouvée
- */
-router.post('/retry/:transactionId', 
+router.post(
+  '/retry/:transactionId',
   ValidationMiddleware.validateParams({
-    transactionId: ValidationMiddleware.schemas.string.required()
+    transactionId: Joi.string().required()
   }),
+  ValidationMiddleware.createPaymentServiceValidator('retryPayment'),
   controller.retryPayment
 );
 

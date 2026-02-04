@@ -61,8 +61,11 @@ class DatabaseBootstrap {
         CREATE TABLE IF NOT EXISTS schema_migrations (
           id SERIAL PRIMARY KEY,
           migration_name VARCHAR(255) NOT NULL UNIQUE,
+          executed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
           checksum VARCHAR(64) NOT NULL,
-          executed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          file_size BIGINT NOT NULL,
+          execution_time_ms INTEGER,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
         )
       `);
 
@@ -86,8 +89,8 @@ class DatabaseBootstrap {
 
         await client.query(sql);
         await client.query(
-          'INSERT INTO schema_migrations (migration_name, checksum) VALUES ($1, $2)',
-          [file, checksum]
+          'INSERT INTO schema_migrations (migration_name, checksum, file_size, execution_time_ms) VALUES ($1, $2, $3, $4)',
+          [file, checksum, Buffer.byteLength(sql, 'utf8'), 0]
         );
         console.log(`✅ Migration appliquée: ${file}`);
       }

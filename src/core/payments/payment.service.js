@@ -74,6 +74,93 @@ class PaymentService {
     );
     return result.rows[0] || null;
   }
+
+  async getPaymentByTransactionId(transactionId) {
+    const result = await query(
+      'SELECT * FROM payments WHERE transaction_id = $1',
+      [transactionId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async retryPayment(originalTransactionId, { userId = null } = {}) {
+    const original = await this.getPaymentByTransactionId(originalTransactionId);
+    if (!original) {
+      return { success: false, error: 'Original transaction not found' };
+    }
+    if (original.status !== 'failed') {
+      return { success: false, error: 'Only failed payments can be retried' };
+    }
+
+    const newTransactionId = `${originalTransactionId}-retry-${Date.now()}`;
+    const result = await query(
+      `INSERT INTO payments (
+        user_id, gateway_id, purchase_id, amount, currency, status,
+        payment_method, transaction_id, gateway_response
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      RETURNING *`,
+      [
+        original.user_id,
+        original.gateway_id,
+        original.purchase_id,
+        original.amount,
+        original.currency,
+        'pending',
+        original.payment_method,
+        newTransactionId,
+        original.gateway_response
+      ]
+    );
+
+    return {
+      success: true,
+      data: {
+        originalTransactionId,
+        newTransactionId,
+        payment: result.rows[0],
+        requestedBy: userId
+      }
+    };
+  }
+
+  async getInvoice(invoiceId) {
+    let payment = null;
+    if (/^\d+$/.test(String(invoiceId))) {
+      payment = await this.getPayment(Number(invoiceId));
+    }
+    if (!payment) {
+      payment = await this.getPaymentByTransactionId(invoiceId);
+    }
+    if (!payment) {
+      return null;
+    }
+
+    const pdfContent = [
+      '%PDF-1.4',
+      '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+      '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+      '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R >> endobj',
+      `4 0 obj << /Length 60 >> stream`,
+      `BT /F1 12 Tf 10 100 Td (Invoice ${payment.id} - ${payment.amount} ${payment.currency}) Tj ET`,
+      'endstream endobj',
+      'xref',
+      '0 5',
+      '0000000000 65535 f ',
+      '0000000010 00000 n ',
+      '0000000060 00000 n ',
+      '0000000110 00000 n ',
+      '0000000210 00000 n ',
+      'trailer << /Root 1 0 R /Size 5 >>',
+      'startxref',
+      '320',
+      '%%EOF'
+    ].join('\n');
+
+    return {
+      pdfBuffer: Buffer.from(pdfContent)
+    };
+  }
 }
 
 module.exports = new PaymentService();
