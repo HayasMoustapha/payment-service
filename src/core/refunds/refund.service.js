@@ -39,6 +39,25 @@ class RefundService {
     );
     return result.rows;
   }
+
+  async updateRefund(refundId, { status, processed_at, reason, amount }) {
+    const result = await query(
+      `UPDATE refunds
+       SET status = COALESCE($1, status),
+           processed_at = COALESCE($2, processed_at),
+           reason = COALESCE($3, reason),
+           amount = COALESCE($4, amount)
+       WHERE id = $5
+       RETURNING *`,
+      [status ?? null, processed_at ?? null, reason ?? null, amount ?? null, refundId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async deleteRefund(refundId) {
+    const result = await query('DELETE FROM refunds WHERE id = $1 RETURNING *', [refundId]);
+    return result.rows[0] || null;
+  }
 }
 
 module.exports = new RefundService();

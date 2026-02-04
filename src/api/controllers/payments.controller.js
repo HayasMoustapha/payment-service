@@ -56,6 +56,32 @@ class PaymentsController {
     }
   }
 
+  async update(req, res) {
+    try {
+      const payment = await paymentService.updatePayment(req.params.paymentId, req.body);
+      if (!payment) {
+        return res.status(404).json(notFoundResponse('Payment', req.params.paymentId));
+      }
+      return res.status(200).json(successResponse('Payment updated', payment));
+    } catch (error) {
+      logger.error('Failed to update payment', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to update payment'));
+    }
+  }
+
+  async delete(req, res) {
+    try {
+      const payment = await paymentService.deletePayment(req.params.paymentId);
+      if (!payment) {
+        return res.status(404).json(notFoundResponse('Payment', req.params.paymentId));
+      }
+      return res.status(200).json(successResponse('Payment deleted', payment));
+    } catch (error) {
+      logger.error('Failed to delete payment', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to delete payment'));
+    }
+  }
+
   // ========================================
   // MÉTHODES MANQUANTES POUR LES TEMPLATES EMAIL
   // ========================================

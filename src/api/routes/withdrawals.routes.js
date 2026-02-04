@@ -20,4 +20,20 @@ router.patch(
   controller.updateStatus
 );
 
+router.patch(
+  '/:withdrawalId',
+  ValidationMiddleware.validateParams({
+    withdrawalId: ValidationMiddleware.schemas.id.required()
+  }),
+  ValidationMiddleware.createPaymentServiceValidator('updateWithdrawal'),
+  controller.update
+);
+
+router.delete('/:withdrawalId',
+  ValidationMiddleware.validateParams({
+    withdrawalId: ValidationMiddleware.schemas.id.required()
+  }),
+  controller.delete
+);
+
 module.exports = router;

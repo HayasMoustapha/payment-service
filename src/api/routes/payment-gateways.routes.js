@@ -20,4 +20,12 @@ router.patch(
   controller.update
 );
 
+router.delete(
+  '/:gatewayId',
+  ValidationMiddleware.validateParams({
+    gatewayId: ValidationMiddleware.schemas.id.required()
+  }),
+  controller.delete
+);
+
 module.exports = router;

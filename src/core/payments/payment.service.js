@@ -75,6 +75,44 @@ class PaymentService {
     return result.rows[0] || null;
   }
 
+  async updatePayment(paymentId, fields = {}) {
+    const {
+      amount,
+      currency,
+      status,
+      payment_method,
+      transaction_id,
+      gateway_response
+    } = fields;
+
+    const result = await query(
+      `UPDATE payments
+       SET amount = COALESCE($1, amount),
+           currency = COALESCE($2, currency),
+           status = COALESCE($3, status),
+           payment_method = COALESCE($4, payment_method),
+           transaction_id = COALESCE($5, transaction_id),
+           gateway_response = COALESCE($6, gateway_response)
+       WHERE id = $7
+       RETURNING *`,
+      [
+        amount ?? null,
+        currency ?? null,
+        status ?? null,
+        payment_method ?? null,
+        transaction_id ?? null,
+        gateway_response ? JSON.stringify(gateway_response) : null,
+        paymentId
+      ]
+    );
+    return result.rows[0] || null;
+  }
+
+  async deletePayment(paymentId) {
+    const result = await query('DELETE FROM payments WHERE id = $1 RETURNING *', [paymentId]);
+    return result.rows[0] || null;
+  }
+
   async getPaymentByTransactionId(transactionId) {
     const result = await query(
       'SELECT * FROM payments WHERE transaction_id = $1',

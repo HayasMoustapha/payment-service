@@ -11,4 +11,19 @@ router.get('/:refundId', ValidationMiddleware.validateParams({
 
 router.post('/', ValidationMiddleware.createPaymentServiceValidator('createRefund'), controller.create);
 
+router.patch('/:refundId',
+  ValidationMiddleware.validateParams({
+    refundId: ValidationMiddleware.schemas.id.required()
+  }),
+  ValidationMiddleware.createPaymentServiceValidator('updateRefund'),
+  controller.update
+);
+
+router.delete('/:refundId',
+  ValidationMiddleware.validateParams({
+    refundId: ValidationMiddleware.schemas.id.required()
+  }),
+  controller.delete
+);
+
 module.exports = router;

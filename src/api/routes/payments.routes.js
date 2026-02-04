@@ -13,12 +13,29 @@ router.get('/:paymentId', ValidationMiddleware.validateParams({
 router.post('/', ValidationMiddleware.createPaymentServiceValidator('createPayment'), controller.create);
 
 router.patch(
+  '/:paymentId',
+  ValidationMiddleware.validateParams({
+    paymentId: ValidationMiddleware.schemas.id.required()
+  }),
+  ValidationMiddleware.createPaymentServiceValidator('updatePayment'),
+  controller.update
+);
+
+router.patch(
   '/:paymentId/status',
   ValidationMiddleware.validateParams({
     paymentId: ValidationMiddleware.schemas.id.required()
   }),
   ValidationMiddleware.createPaymentServiceValidator('updatePaymentStatus'),
   controller.updateStatus
+);
+
+router.delete(
+  '/:paymentId',
+  ValidationMiddleware.validateParams({
+    paymentId: ValidationMiddleware.schemas.id.required()
+  }),
+  controller.delete
 );
 
 // New routes for email templates

@@ -57,6 +57,11 @@ class PaymentGatewayService {
     );
     return result.rows[0] || null;
   }
+
+  async deleteGateway(gatewayId) {
+    const result = await query('DELETE FROM payment_gateways WHERE id = $1 RETURNING *', [gatewayId]);
+    return result.rows[0] || null;
+  }
 }
 
 module.exports = new PaymentGatewayService();

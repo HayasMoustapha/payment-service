@@ -49,6 +49,19 @@ class PaymentGatewaysController {
       return res.status(500).json(serverErrorResponse('Failed to update payment gateway'));
     }
   }
+
+  async delete(req, res) {
+    try {
+      const gateway = await paymentGatewayService.deleteGateway(req.params.gatewayId);
+      if (!gateway) {
+        return res.status(404).json(notFoundResponse('Payment gateway', req.params.gatewayId));
+      }
+      return res.status(200).json(successResponse('Payment gateway deleted', gateway));
+    } catch (error) {
+      logger.error('Failed to delete payment gateway', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to delete payment gateway'));
+    }
+  }
 }
 
 module.exports = new PaymentGatewaysController();

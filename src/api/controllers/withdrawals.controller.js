@@ -58,6 +58,32 @@ class WithdrawalsController {
       return res.status(500).json(serverErrorResponse('Failed to update withdrawal status'));
     }
   }
+
+  async update(req, res) {
+    try {
+      const withdrawal = await withdrawalService.updateWithdrawal(req.params.withdrawalId, req.body);
+      if (!withdrawal) {
+        return res.status(404).json(notFoundResponse('Withdrawal', req.params.withdrawalId));
+      }
+      return res.status(200).json(successResponse('Withdrawal updated', withdrawal));
+    } catch (error) {
+      logger.error('Failed to update withdrawal', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to update withdrawal'));
+    }
+  }
+
+  async delete(req, res) {
+    try {
+      const withdrawal = await withdrawalService.deleteWithdrawal(req.params.withdrawalId);
+      if (!withdrawal) {
+        return res.status(404).json(notFoundResponse('Withdrawal', req.params.withdrawalId));
+      }
+      return res.status(200).json(successResponse('Withdrawal deleted', withdrawal));
+    } catch (error) {
+      logger.error('Failed to delete withdrawal', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to delete withdrawal'));
+    }
+  }
 }
 
 module.exports = new WithdrawalsController();

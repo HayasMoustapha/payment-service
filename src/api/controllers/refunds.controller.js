@@ -41,6 +41,32 @@ class RefundsController {
       return res.status(500).json(serverErrorResponse('Failed to create refund'));
     }
   }
+
+  async update(req, res) {
+    try {
+      const refund = await refundService.updateRefund(req.params.refundId, req.body);
+      if (!refund) {
+        return res.status(404).json(notFoundResponse('Refund', req.params.refundId));
+      }
+      return res.status(200).json(successResponse('Refund updated', refund));
+    } catch (error) {
+      logger.error('Failed to update refund', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to update refund'));
+    }
+  }
+
+  async delete(req, res) {
+    try {
+      const refund = await refundService.deleteRefund(req.params.refundId);
+      if (!refund) {
+        return res.status(404).json(notFoundResponse('Refund', req.params.refundId));
+      }
+      return res.status(200).json(successResponse('Refund deleted', refund));
+    } catch (error) {
+      logger.error('Failed to delete refund', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to delete refund'));
+    }
+  }
 }
 
 module.exports = new RefundsController();

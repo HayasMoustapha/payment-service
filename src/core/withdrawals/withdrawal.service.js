@@ -50,6 +50,25 @@ class WithdrawalService {
     );
     return result.rows[0] || null;
   }
+
+  async updateWithdrawal(withdrawalId, { amount, status, processed_at, requested_at }) {
+    const result = await query(
+      `UPDATE withdrawals
+       SET amount = COALESCE($1, amount),
+           status = COALESCE($2, status),
+           processed_at = COALESCE($3, processed_at),
+           requested_at = COALESCE($4, requested_at)
+       WHERE id = $5
+       RETURNING *`,
+      [amount ?? null, status ?? null, processed_at ?? null, requested_at ?? null, withdrawalId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async deleteWithdrawal(withdrawalId) {
+    const result = await query('DELETE FROM withdrawals WHERE id = $1 RETURNING *', [withdrawalId]);
+    return result.rows[0] || null;
+  }
 }
 
 module.exports = new WithdrawalService();
