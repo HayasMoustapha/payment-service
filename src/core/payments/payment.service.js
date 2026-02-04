@@ -1,4 +1,6 @@
 const { query } = require('../../utils/database-wrapper');
+const notificationClient = require('../../../../../shared/clients/notification-client');
+const logger = require('../../utils/logger');
 
 class PaymentService {
   async createPayment({
@@ -198,6 +200,135 @@ class PaymentService {
     return {
       pdfBuffer: Buffer.from(pdfContent)
     };
+  }
+
+  /**
+   * Envoyer une notification de confirmation de paiement
+   * @param {Object} paymentData - Données du paiement
+   * @param {Object} userData - Données de l'utilisateur
+   * @param {Object} eventData - Données de l'événement (optionnel)
+   */
+  async sendPaymentConfirmationNotification(paymentData, userData, eventData = null) {
+    try {
+      const notificationData = {
+        transactionId: paymentData.transaction_id,
+        amount: (paymentData.amount / 100).toFixed(2),
+        currency: paymentData.currency,
+        eventName: eventData?.title || 'Achat de tickets',
+        ticketCount: eventData?.ticketCount || 1,
+        paymentDate: new Date(paymentData.created_at).toLocaleDateString('fr-FR'),
+        invoiceUrl: `${process.env.FRONTEND_URL}/invoices/${paymentData.id}`
+      };
+
+      const result = await notificationClient.sendPaymentConfirmationEmail(userData.email, notificationData);
+      
+      logger.info('Payment confirmation notification sent', {
+        paymentId: paymentData.id,
+        userId: userData.id,
+        success: result.success
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Failed to send payment confirmation notification', {
+        paymentId: paymentData.id,
+        userId: userData.id,
+        error: error.message
+      });
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Envoyer une notification d'échec de paiement
+   * @param {Object} paymentData - Données du paiement
+   * @param {Object} userData - Données de l'utilisateur
+   * @param {Object} eventData - Données de l'événement (optionnel)
+   * @param {Object} errorData - Données de l'erreur
+   */
+  async sendPaymentFailureNotification(paymentData, userData, eventData = null, errorData = {}) {
+    try {
+      const notificationData = {
+        firstName: userData.first_name,
+        eventName: eventData?.title || 'Achat de tickets',
+        ticketCount: eventData?.ticketCount || 1,
+        amount: (paymentData.amount / 100).toFixed(2),
+        currency: paymentData.currency,
+        paymentMethod: paymentData.payment_method,
+        transactionId: paymentData.transaction_id,
+        errorCode: errorData.code,
+        errorMessage: errorData.message,
+        errorDetails: errorData.details,
+        failedDate: new Date().toLocaleDateString('fr-FR'),
+        remainingAttempts: errorData.remainingAttempts || 0,
+        canRetry: errorData.canRetry || false,
+        retryUrl: `${process.env.FRONTEND_URL}/checkout/retry`,
+        eventId: eventData?.id,
+        frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000'
+      };
+
+      const result = await notificationClient.sendPaymentFailureEmail(userData.email, notificationData);
+      
+      logger.info('Payment failure notification sent', {
+        paymentId: paymentData.id,
+        userId: userData.id,
+        success: result.success
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Failed to send payment failure notification', {
+        paymentId: paymentData.id,
+        userId: userData.id,
+        error: error.message
+      });
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Envoyer une notification de détection de fraude
+   * @param {Object} paymentData - Données du paiement
+   * @param {Object} userData - Données de l'utilisateur
+   * @param {Object} fraudData - Données de la fraude détectée
+   */
+  async sendFraudDetectionNotification(paymentData, userData, fraudData) {
+    try {
+      const notificationData = {
+        firstName: userData.first_name,
+        fraudType: fraudData.type,
+        riskLevel: fraudData.riskLevel,
+        detectionTime: new Date(fraudData.detectedAt).toLocaleString('fr-FR'),
+        incidentId: fraudData.incidentId,
+        status: fraudData.status,
+        description: fraudData.description,
+        affectedTickets: fraudData.affectedTickets,
+        suspiciousActivity: fraudData.suspiciousActivity,
+        requiresPasswordChange: fraudData.requiresPasswordChange || false,
+        requiresAccountReview: fraudData.requiresAccountReview || false,
+        requiresContactSupport: fraudData.requiresContactSupport || false,
+        requiresTicketValidation: fraudData.requiresTicketValidation || false,
+        frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000'
+      };
+
+      const result = await notificationClient.sendFraudDetectedEmail(userData.email, notificationData);
+      
+      logger.info('Fraud detection notification sent', {
+        paymentId: paymentData.id,
+        userId: userData.id,
+        incidentId: fraudData.incidentId,
+        success: result.success
+      });
+
+      return result;
+    } catch (error) {
+      logger.error('Failed to send fraud detection notification', {
+        paymentId: paymentData.id,
+        userId: userData.id,
+        error: error.message
+      });
+      return { success: false, error: error.message };
+    }
   }
 }
 
