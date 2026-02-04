@@ -1,5 +1,5 @@
 const { query } = require('../../utils/database-wrapper');
-const notificationClient = require('../../../../../shared/clients/notification-client');
+const notificationClient = require("../../../../shared/clients/notification-client");
 const logger = require('../../utils/logger');
 
 class RefundService {
