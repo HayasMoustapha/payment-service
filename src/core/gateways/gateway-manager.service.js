@@ -7,6 +7,7 @@ const PayGateGateway = require('./providers/paygate-gateway');
 const MTNMomoGateway = require('./providers/mtn-momo-gateway');
 const OrangeMoneyGateway = require('./providers/orange-money-gateway');
 const MyCoolPayGateway = require('./providers/mycoolpay-gateway');
+const MockGateway = require('./providers/mock-gateway');
 
 class GatewayManager {
   constructor() {
@@ -18,7 +19,8 @@ class GatewayManager {
       paygate: new PayGateGateway(),
       mtn_momo: new MTNMomoGateway(),
       orange_money: new OrangeMoneyGateway(),
-      mycoolpay: new MyCoolPayGateway()
+      mycoolpay: new MyCoolPayGateway(),
+      mock: new MockGateway()
     };
   }
 

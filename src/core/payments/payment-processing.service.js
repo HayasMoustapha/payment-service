@@ -1,6 +1,7 @@
 const paymentService = require('./payment.service');
 const commissionService = require('../commissions/commission.service');
 const gatewayManager = require('../gateways/gateway-manager.service');
+const paymentGatewayService = require('../gateways/payment-gateway.service');
 const logger = require('../../utils/logger');
 const axios = require('axios');
 
@@ -18,15 +19,26 @@ class PaymentProcessingService {
     preferredGateways = [],
     metadata = {}
   }) {
-    const gateway = await gatewayManager.selectGateway({
+    let gateway = await gatewayManager.selectGateway({
       preferredGateways: [paymentMethod, ...preferredGateways],
       fallback: ['stripe', 'paypal', 'cinetpay', 'mtn_momo', 'orange_money', 'paydunya', 'paygate', 'mycoolpay']
     });
 
     if (!gateway) {
-      const error = new Error('No active payment gateway available');
-      error.code = 'PAYMENT_GATEWAY_UNAVAILABLE';
-      throw error;
+      const allowMock = process.env.PAYMENT_ALLOW_MOCK === 'true' || process.env.NODE_ENV !== 'production';
+      if (allowMock) {
+        gateway = await paymentGatewayService.getGatewayByCode('mock') ||
+          await paymentGatewayService.createGateway({
+            name: 'Mock Gateway',
+            code: 'mock',
+            is_active: true,
+            config: { mode: 'mock' }
+          });
+      } else {
+        const error = new Error('No active payment gateway available');
+        error.code = 'PAYMENT_GATEWAY_UNAVAILABLE';
+        throw error;
+      }
     }
 
     const paymentRecord = await paymentService.createPayment({
