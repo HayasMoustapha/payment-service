@@ -18,6 +18,12 @@ class HttpGateway extends BaseGateway {
     this.assertConfig(this.initiatePath, `${this.code.toUpperCase()}_INITIATE_PATH`);
   }
 
+  isReady(config = {}) {
+    const baseUrl = config.baseUrl || this.baseUrl;
+    const initiatePath = config.initiatePath || this.initiatePath;
+    return !!(baseUrl && initiatePath);
+  }
+
   buildUrl(path) {
     return `${this.baseUrl}${path}`;
   }

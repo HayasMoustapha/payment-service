@@ -42,6 +42,13 @@ class GatewayManager {
     for (const code of candidates) {
       const gateway = await this.resolveGateway(code);
       if (gateway) {
+        const provider = this.getProvider(gateway.code);
+        if (provider && typeof provider.isReady === 'function') {
+          if (provider.isReady(gateway.config || {})) {
+            return gateway;
+          }
+          continue;
+        }
         return gateway;
       }
     }

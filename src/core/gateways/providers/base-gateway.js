@@ -20,6 +20,10 @@ class BaseGateway {
     }
   }
 
+  isReady() {
+    return true;
+  }
+
   async initiatePayment() {
     throw new Error(`${this.code} initiatePayment not implemented`);
   }

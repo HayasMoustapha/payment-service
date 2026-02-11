@@ -4,11 +4,24 @@ const BaseGateway = require('./base-gateway');
 class StripeGateway extends BaseGateway {
   constructor(config = {}) {
     super({ code: 'stripe', name: 'Stripe', config });
-    const apiKey = config.secretKey || process.env.STRIPE_SECRET_KEY;
-    this.assertConfig(apiKey, 'STRIPE_SECRET_KEY');
-    const apiVersion = config.apiVersion || process.env.STRIPE_API_VERSION || '2024-06-20';
-    this.stripe = new Stripe(apiKey, { apiVersion });
+    this.apiKey = config.secretKey || process.env.STRIPE_SECRET_KEY;
+    this.apiVersion = config.apiVersion || process.env.STRIPE_API_VERSION || '2024-06-20';
     this.webhookSecret = config.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET;
+    this.stripe = null;
+  }
+
+  isReady(config = {}) {
+    const apiKey = config.secretKey || this.apiKey || process.env.STRIPE_SECRET_KEY;
+    return !!apiKey;
+  }
+
+  getClient(config = {}) {
+    const apiKey = config.secretKey || this.apiKey || process.env.STRIPE_SECRET_KEY;
+    this.assertConfig(apiKey, 'STRIPE_SECRET_KEY');
+    if (!this.stripe) {
+      this.stripe = new Stripe(apiKey, { apiVersion: this.apiVersion });
+    }
+    return this.stripe;
   }
 
   mapStatus(stripeStatus) {
@@ -23,11 +36,12 @@ class StripeGateway extends BaseGateway {
   }
 
   async initiatePayment({ amount, currency, description, metadata = {}, customer, paymentId, returnUrl, cancelUrl, useCheckout = false }) {
+    const stripe = this.getClient();
     const normalizedCurrency = (currency || 'EUR').toLowerCase();
     const amountInMinor = Math.round(Number(amount) * 100);
 
     if (useCheckout) {
-      const session = await this.stripe.checkout.sessions.create({
+      const session = await stripe.checkout.sessions.create({
         mode: 'payment',
         success_url: returnUrl || this.getConfigValue('successUrl') || 'http://localhost:3000/payment/success',
         cancel_url: cancelUrl || this.getConfigValue('cancelUrl') || 'http://localhost:3000/payment/cancel',
@@ -60,7 +74,7 @@ class StripeGateway extends BaseGateway {
       };
     }
 
-    const intent = await this.stripe.paymentIntents.create({
+    const intent = await stripe.paymentIntents.create({
       amount: amountInMinor,
       currency: normalizedCurrency,
       description: description || metadata?.description || 'Event payment',
@@ -83,7 +97,8 @@ class StripeGateway extends BaseGateway {
   }
 
   async getPaymentStatus(transactionId) {
-    const intent = await this.stripe.paymentIntents.retrieve(transactionId);
+    const stripe = this.getClient();
+    const intent = await stripe.paymentIntents.retrieve(transactionId);
     return {
       provider: 'stripe',
       status: this.mapStatus(intent.status),
@@ -93,7 +108,8 @@ class StripeGateway extends BaseGateway {
   }
 
   async cancelPayment(transactionId) {
-    const intent = await this.stripe.paymentIntents.cancel(transactionId);
+    const stripe = this.getClient();
+    const intent = await stripe.paymentIntents.cancel(transactionId);
     return {
       provider: 'stripe',
       status: this.mapStatus(intent.status),
@@ -107,7 +123,8 @@ class StripeGateway extends BaseGateway {
       return { success: false, error: 'Stripe webhook secret not configured' };
     }
     try {
-      const event = this.stripe.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
+      const stripe = this.getClient();
+      const event = stripe.webhooks.constructEvent(rawBody, signature, this.webhookSecret);
       return { success: true, event };
     } catch (error) {
       return { success: false, error: error.message };

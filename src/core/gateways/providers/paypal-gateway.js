@@ -9,18 +9,34 @@ class PayPalGateway extends BaseGateway {
     this.clientSecret = config.clientSecret || process.env.PAYPAL_CLIENT_SECRET;
     this.mode = config.mode || process.env.PAYPAL_MODE || 'sandbox';
     this.webhookId = config.webhookId || process.env.PAYPAL_WEBHOOK_ID;
+    this.client = null;
+    this.baseUrl = null;
+  }
 
-    this.assertConfig(this.clientId, 'PAYPAL_CLIENT_ID');
-    this.assertConfig(this.clientSecret, 'PAYPAL_CLIENT_SECRET');
+  isReady(config = {}) {
+    const clientId = config.clientId || this.clientId || process.env.PAYPAL_CLIENT_ID;
+    const clientSecret = config.clientSecret || this.clientSecret || process.env.PAYPAL_CLIENT_SECRET;
+    return !!(clientId && clientSecret);
+  }
 
-    const environment = this.mode === 'live'
-      ? new paypalSdk.core.LiveEnvironment(this.clientId, this.clientSecret)
-      : new paypalSdk.core.SandboxEnvironment(this.clientId, this.clientSecret);
+  getClient(config = {}) {
+    const clientId = config.clientId || this.clientId || process.env.PAYPAL_CLIENT_ID;
+    const clientSecret = config.clientSecret || this.clientSecret || process.env.PAYPAL_CLIENT_SECRET;
+    this.assertConfig(clientId, 'PAYPAL_CLIENT_ID');
+    this.assertConfig(clientSecret, 'PAYPAL_CLIENT_SECRET');
 
-    this.client = new paypalSdk.core.PayPalHttpClient(environment);
-    this.baseUrl = this.mode === 'live'
-      ? 'https://api-m.paypal.com'
-      : 'https://api-m.sandbox.paypal.com';
+    if (!this.client) {
+      const environment = this.mode === 'live'
+        ? new paypalSdk.core.LiveEnvironment(clientId, clientSecret)
+        : new paypalSdk.core.SandboxEnvironment(clientId, clientSecret);
+
+      this.client = new paypalSdk.core.PayPalHttpClient(environment);
+      this.baseUrl = this.mode === 'live'
+        ? 'https://api-m.paypal.com'
+        : 'https://api-m.sandbox.paypal.com';
+    }
+
+    return this.client;
   }
 
   mapStatus(paypalStatus) {
@@ -33,6 +49,7 @@ class PayPalGateway extends BaseGateway {
   }
 
   async initiatePayment({ amount, currency, description, metadata = {}, returnUrl, cancelUrl, customer }) {
+    const client = this.getClient();
     const request = new paypalSdk.orders.OrdersCreateRequest();
     request.prefer('return=representation');
     request.requestBody({
@@ -55,7 +72,7 @@ class PayPalGateway extends BaseGateway {
       payer: customer?.email ? { email_address: customer.email } : undefined
     });
 
-    const response = await this.client.execute(request);
+    const response = await client.execute(request);
     const order = response.result;
     const approvalLink = order.links?.find((link) => link.rel === 'approve');
 
@@ -70,9 +87,10 @@ class PayPalGateway extends BaseGateway {
   }
 
   async captureOrder(orderId) {
+    const client = this.getClient();
     const request = new paypalSdk.orders.OrdersCaptureRequest(orderId);
     request.requestBody({});
-    const response = await this.client.execute(request);
+    const response = await client.execute(request);
     const order = response.result;
     return {
       provider: 'paypal',
@@ -83,8 +101,9 @@ class PayPalGateway extends BaseGateway {
   }
 
   async getPaymentStatus(orderId) {
+    const client = this.getClient();
     const request = new paypalSdk.orders.OrdersGetRequest(orderId);
-    const response = await this.client.execute(request);
+    const response = await client.execute(request);
     const order = response.result;
     return {
       provider: 'paypal',
@@ -110,6 +129,7 @@ class PayPalGateway extends BaseGateway {
     }
 
     try {
+      this.getClient();
       const payload = {
         auth_algo: headers['paypal-auth-algo'],
         cert_url: headers['paypal-cert-url'],
