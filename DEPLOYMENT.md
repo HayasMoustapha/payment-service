@@ -21,6 +21,7 @@
    - Stripe / PayPal (sandbox ou prod)
    - Gateways locaux (Orange Money, MTN, etc.)
    - `JWT_SECRET`
+3. Utiliser des clés sandbox pour les tests
 
 ---
 
@@ -45,4 +46,3 @@ npm run start
 ```
 GET http://localhost:3003/api/health
 ```
-
