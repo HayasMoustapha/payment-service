@@ -102,7 +102,7 @@ class PaymentServer {
       this.server = this.app.listen(this.port, () => {
         logger.info(`Payment Service running on port ${this.port}`);
         console.log(`🚀 Payment Service running on http://localhost:${this.port}`);
-        console.log(`📚 API documentation: http://localhost:${this.port}/api`);
+        console.log(`📚 API documentation: http://localhost:${this.port}/docs`);
         console.log(`💚 Health check: http://localhost:${this.port}/health`);
         console.log(`💳 Database: ${process.env.DB_NAME || 'event_planner_payments'}`);
       });
