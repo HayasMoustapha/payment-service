@@ -74,6 +74,11 @@ class PaymentServer {
         });
       });
 
+      // Documentation Swagger — http://localhost:3003/docs
+      const { specs: swaggerSpecs, swaggerUi, swaggerUiOptions } = require('./config/swagger');
+      this.app.use('/docs', swaggerUi.serve);
+      this.app.get('/docs', swaggerUi.setup(swaggerSpecs, swaggerUiOptions));
+
       // 404 handler
       this.app.use((req, res) => {
         res.status(404).json({
