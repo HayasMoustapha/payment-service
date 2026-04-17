@@ -152,9 +152,15 @@ class PaymentFlowController {
 
   async initiatePayment(req, res) {
     try {
+      const resolvedPurchaseId =
+        req.body.metadata?.event_guest_id ||
+        req.body.metadata?.ticket_type_id ||
+        req.body.event_id ||
+        null;
+
       const result = await paymentProcessingService.processPayment({
         userId: req.body.organizer_id || req.body.user_id,
-        purchaseId: req.body.event_id || null,
+        purchaseId: resolvedPurchaseId,
         amount: req.body.amount,
         currency: req.body.currency,
         paymentMethod: req.body.payment_method,
@@ -162,6 +168,7 @@ class PaymentFlowController {
         customer: req.body.customer_info || {},
         returnUrl: req.body.metadata?.return_url,
         cancelUrl: req.body.metadata?.cancel_url,
+        useCheckout: req.body.use_checkout === true || req.body.metadata?.use_checkout === true,
         metadata: {
           ...(req.body.metadata || {}),
           event_id: req.body.event_id,
@@ -182,7 +189,11 @@ class PaymentFlowController {
         try {
           const fallback = await paymentProcessingService.processPayment({
             userId: req.body.organizer_id || req.body.user_id,
-            purchaseId: req.body.event_id || null,
+            purchaseId:
+              req.body.metadata?.event_guest_id ||
+              req.body.metadata?.ticket_type_id ||
+              req.body.event_id ||
+              null,
             amount: req.body.amount,
             currency: req.body.currency,
             paymentMethod: 'mock',
@@ -190,6 +201,7 @@ class PaymentFlowController {
             customer: req.body.customer_info || {},
             returnUrl: req.body.metadata?.return_url,
             cancelUrl: req.body.metadata?.cancel_url,
+            useCheckout: req.body.use_checkout === true || req.body.metadata?.use_checkout === true,
             preferredGateways: ['mock'],
             metadata: {
               ...(req.body.metadata || {}),
@@ -398,7 +410,44 @@ class PaymentFlowController {
     try {
       const provider = gatewayManager.getProvider('paypal');
       const capture = await provider.captureOrder(req.params.orderId);
-      return res.status(200).json(successResponse('PayPal order captured', capture));
+      const paymentId = req.body?.paymentId ? Number(req.body.paymentId) : null;
+      const payment =
+        (paymentId ? await paymentService.getPayment(paymentId) : null) ||
+        await paymentService.getPaymentByTransactionId(req.params.orderId);
+
+      let updatedPayment = null;
+      if (payment) {
+        const gatewayResponse = {
+          provider: capture.raw || payment.gateway_response?.provider || payment.gateway_response || null,
+          metadata: payment.gateway_response?.metadata || {}
+        };
+
+        updatedPayment = await paymentService.updatePayment(payment.id, {
+          status: capture.status || 'completed',
+          transaction_id: capture.transactionId || payment.transaction_id,
+          gateway_response: gatewayResponse
+        });
+
+        await paymentProcessingService.notifyCoreService({
+          paymentIntentId:
+            payment.gateway_response?.metadata?.payment_intent_id ||
+            req.body?.paymentIntentId ||
+            capture.transactionId,
+          status: capture.status || 'completed',
+          provider: 'paypal',
+          data: {
+            payment_service_id: payment.id,
+            template_id: payment.gateway_response?.metadata?.template_id,
+            event_id: payment.gateway_response?.metadata?.event_id,
+            metadata: payment.gateway_response?.metadata || {}
+          }
+        });
+      }
+
+      return res.status(200).json(successResponse('PayPal order captured', {
+        ...capture,
+        payment: updatedPayment
+      }));
     } catch (error) {
       logger.error('Failed to capture PayPal order', { error: error.message });
       return res.status(500).json(serverErrorResponse('Failed to capture PayPal order'));

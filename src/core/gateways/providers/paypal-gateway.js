@@ -42,7 +42,8 @@ class PayPalGateway extends BaseGateway {
   mapStatus(paypalStatus) {
     if (!paypalStatus) return 'pending';
     const status = paypalStatus.toUpperCase();
-    if (status === 'COMPLETED' || status === 'APPROVED') return 'completed';
+    if (status === 'COMPLETED') return 'completed';
+    if (status === 'APPROVED') return 'pending';
     if (status === 'CREATED' || status === 'PAYER_ACTION_REQUIRED') return 'pending';
     if (status === 'CANCELLED' || status === 'VOIDED' || status === 'FAILED' || status === 'DENIED') return 'failed';
     return 'pending';

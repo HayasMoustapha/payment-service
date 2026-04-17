@@ -45,6 +45,7 @@ const initiatePaymentSchema = Joi.object({
   amount: ValidationMiddleware.schemas.amount,
   currency: ValidationMiddleware.schemas.currency,
   payment_method: Joi.string().required(),
+  use_checkout: Joi.boolean().optional(),
   customer_info: Joi.object().optional(),
   metadata: Joi.object().optional()
 });

@@ -5,7 +5,84 @@ const paymentGatewayService = require('../gateways/payment-gateway.service');
 const logger = require('../../utils/logger');
 const axios = require('axios');
 
+const DEFAULT_GATEWAY_FALLBACKS = ['stripe', 'paypal', 'cinetpay', 'mtn_momo', 'orange_money', 'paydunya', 'paygate', 'mycoolpay'];
+
+const allowMockGateway = () => (
+  process.env.PAYMENT_ALLOW_MOCK === 'true' || process.env.NODE_ENV !== 'production'
+);
+
 class PaymentProcessingService {
+  async ensureMockGateway() {
+    const existingMockGateway = await paymentGatewayService.getGatewayByCode('mock');
+    if (existingMockGateway?.is_active) {
+      return existingMockGateway;
+    }
+
+    if (existingMockGateway) {
+      return paymentGatewayService.updateGateway(existingMockGateway.id, {
+        is_active: true,
+        config: { ...(existingMockGateway.config || {}), mode: 'mock' }
+      });
+    }
+
+    return paymentGatewayService.createGateway({
+      name: 'Mock Gateway',
+      code: 'mock',
+      is_active: true,
+      config: { mode: 'mock' }
+    });
+  }
+
+  async resolveGatewaySelection(paymentMethod, preferredGateways = []) {
+    const normalizedPaymentMethod = typeof paymentMethod === 'string'
+      ? paymentMethod.trim().toLowerCase()
+      : '';
+    const normalizedPreferredGateways = preferredGateways
+      .map((gatewayCode) => typeof gatewayCode === 'string' ? gatewayCode.trim().toLowerCase() : '')
+      .filter(Boolean);
+
+    if (normalizedPaymentMethod === 'mock') {
+      if (!allowMockGateway()) {
+        const error = new Error('Mock payment gateway is disabled');
+        error.code = 'PAYMENT_METHOD_NOT_AVAILABLE';
+        throw error;
+      }
+      return this.ensureMockGateway();
+    }
+
+    if (normalizedPaymentMethod) {
+      const explicitGateway = await gatewayManager.selectGateway({
+        preferredGateways: [normalizedPaymentMethod],
+        fallback: []
+      });
+
+      if (explicitGateway) {
+        return explicitGateway;
+      }
+
+      const error = new Error(`Payment method "${normalizedPaymentMethod}" is not available`);
+      error.code = 'PAYMENT_METHOD_NOT_AVAILABLE';
+      throw error;
+    }
+
+    let gateway = await gatewayManager.selectGateway({
+      preferredGateways: normalizedPreferredGateways,
+      fallback: DEFAULT_GATEWAY_FALLBACKS
+    });
+
+    if (!gateway && allowMockGateway()) {
+      gateway = await this.ensureMockGateway();
+    }
+
+    if (!gateway) {
+      const error = new Error('No active payment gateway available');
+      error.code = 'PAYMENT_GATEWAY_UNAVAILABLE';
+      throw error;
+    }
+
+    return gateway;
+  }
+
   async processPayment({
     userId,
     purchaseId = null,
@@ -17,29 +94,10 @@ class PaymentProcessingService {
     returnUrl,
     cancelUrl,
     preferredGateways = [],
-    metadata = {}
+    metadata = {},
+    useCheckout = false
   }) {
-    let gateway = await gatewayManager.selectGateway({
-      preferredGateways: [paymentMethod, ...preferredGateways],
-      fallback: ['stripe', 'paypal', 'cinetpay', 'mtn_momo', 'orange_money', 'paydunya', 'paygate', 'mycoolpay']
-    });
-
-    if (!gateway) {
-      const allowMock = process.env.PAYMENT_ALLOW_MOCK === 'true' || process.env.NODE_ENV !== 'production';
-      if (allowMock) {
-        gateway = await paymentGatewayService.getGatewayByCode('mock') ||
-          await paymentGatewayService.createGateway({
-            name: 'Mock Gateway',
-            code: 'mock',
-            is_active: true,
-            config: { mode: 'mock' }
-          });
-      } else {
-        const error = new Error('No active payment gateway available');
-        error.code = 'PAYMENT_GATEWAY_UNAVAILABLE';
-        throw error;
-      }
-    }
+    const gateway = await this.resolveGatewaySelection(paymentMethod, preferredGateways);
 
     const paymentRecord = await paymentService.createPayment({
       user_id: userId,
@@ -66,6 +124,7 @@ class PaymentProcessingService {
         returnUrl,
         cancelUrl,
         paymentId: paymentRecord.id,
+        useCheckout,
         gatewayConfig: gateway.config || {}
       });
     } catch (error) {
@@ -166,6 +225,52 @@ class PaymentProcessingService {
 
     if (!payment) {
       return null;
+    }
+
+    if (payment.status === 'pending' && payment.transaction_id) {
+      try {
+        const providerStatus = await gatewayManager.getPaymentStatus(
+          payment.payment_method,
+          payment.transaction_id,
+        );
+
+        if (providerStatus?.status) {
+          const gatewayResponse = {
+            provider: providerStatus.raw || payment.gateway_response?.provider || payment.gateway_response || null,
+            metadata: payment.gateway_response?.metadata || {}
+          };
+
+          payment = await paymentService.updatePayment(payment.id, {
+            status: providerStatus.status,
+            transaction_id: providerStatus.transactionId || payment.transaction_id,
+            gateway_response: gatewayResponse
+          }) || payment;
+
+          if (['completed', 'failed', 'refunded'].includes(providerStatus.status)) {
+            await this.notifyCoreService({
+              paymentIntentId:
+                payment.gateway_response?.metadata?.payment_intent_id ||
+                payment.transaction_id ||
+                providerStatus.transactionId,
+              status: providerStatus.status,
+              provider: payment.payment_method,
+              data: {
+                payment_service_id: payment.id,
+                template_id: payment.gateway_response?.metadata?.template_id,
+                event_id: payment.gateway_response?.metadata?.event_id,
+                metadata: payment.gateway_response?.metadata || {}
+              }
+            });
+          }
+        }
+      } catch (error) {
+        logger.warn('Provider payment status synchronization failed', {
+          paymentId: payment.id,
+          transactionId: payment.transaction_id,
+          provider: payment.payment_method,
+          error: error.message
+        });
+      }
     }
 
     return payment;

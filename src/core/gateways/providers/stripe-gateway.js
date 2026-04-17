@@ -35,6 +35,18 @@ class StripeGateway extends BaseGateway {
     return 'pending';
   }
 
+  mapCheckoutStatus(session) {
+    if (session?.payment_status === 'paid') {
+      return 'completed';
+    }
+
+    if (session?.status === 'expired') {
+      return 'failed';
+    }
+
+    return 'pending';
+  }
+
   async initiatePayment({ amount, currency, description, metadata = {}, customer, paymentId, returnUrl, cancelUrl, useCheckout = false }) {
     const stripe = this.getClient();
     const normalizedCurrency = (currency || 'EUR').toLowerCase();
@@ -98,6 +110,17 @@ class StripeGateway extends BaseGateway {
 
   async getPaymentStatus(transactionId) {
     const stripe = this.getClient();
+
+    if (typeof transactionId === 'string' && transactionId.startsWith('cs_')) {
+      const session = await stripe.checkout.sessions.retrieve(transactionId);
+      return {
+        provider: 'stripe',
+        status: this.mapCheckoutStatus(session),
+        transactionId: session.id,
+        raw: session
+      };
+    }
+
     const intent = await stripe.paymentIntents.retrieve(transactionId);
     return {
       provider: 'stripe',

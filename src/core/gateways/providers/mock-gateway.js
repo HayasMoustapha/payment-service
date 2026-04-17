@@ -23,9 +23,14 @@ class MockGateway {
     };
   }
 
-  async getPaymentStatus() {
+  async getPaymentStatus(transactionId) {
     return {
-      status: 'pending'
+      status: 'completed',
+      transactionId: transactionId || null,
+      raw: {
+        transaction_id: transactionId || null,
+        status: 'completed'
+      }
     };
   }
 
