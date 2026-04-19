@@ -9,6 +9,12 @@ const allowMockGateway = () => (
   process.env.PAYMENT_ALLOW_MOCK === 'true' || process.env.NODE_ENV !== 'production'
 );
 
+const PUBLIC_GATEWAY_CODES = new Set(['stripe', 'paypal']);
+
+if (allowMockGateway()) {
+  PUBLIC_GATEWAY_CODES.add('mock');
+}
+
 const resolveProviderCode = async (preferredCode) => {
   const gateway = await paymentGatewayService.getGatewayByCode(preferredCode);
   const provider = gatewayManager.getProvider(preferredCode);
@@ -508,7 +514,10 @@ class PaymentFlowController {
   async listGateways(req, res) {
     try {
       const gateways = await paymentGatewayService.listGateways({ includeInactive: false });
-      return res.status(200).json(successResponse('Payment gateways retrieved', gateways));
+      const publicGateways = gateways.filter((gateway) =>
+        PUBLIC_GATEWAY_CODES.has(String(gateway.code ?? '').trim().toLowerCase()),
+      );
+      return res.status(200).json(successResponse('Payment gateways retrieved', publicGateways));
     } catch (error) {
       logger.error('Failed to list payment gateways', { error: error.message });
       return res.status(500).json(serverErrorResponse('Failed to list payment gateways'));

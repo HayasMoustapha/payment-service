@@ -16,6 +16,7 @@ const healthRoutes = require('./health/health.routes');
 const bootstrap = require('./bootstrap'); // Initialisation de la base de données
 
 const paymentsRoutes = require('./api/routes/payments.routes');
+const paymentMethodsRoutes = require('./api/routes/payment-methods.routes');
 const gatewaysRoutes = require('./api/routes/payment-gateways.routes');
 const commissionsRoutes = require('./api/routes/commissions.routes');
 const refundsRoutes = require('./api/routes/refunds.routes');
@@ -56,6 +57,7 @@ class PaymentServer {
 
       // Routes API avec gestion d'erreur
       this.app.use('/api/payments', paymentsRoutes);
+      this.app.use('/api/payment-methods', paymentMethodsRoutes);
       this.app.use('/api/payment-gateways', gatewaysRoutes);
       this.app.use('/api/commissions', commissionsRoutes);
       this.app.use('/api/wallets', walletsRoutes);

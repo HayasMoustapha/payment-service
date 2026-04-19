@@ -5,7 +5,7 @@ const paymentGatewayService = require('../gateways/payment-gateway.service');
 const logger = require('../../utils/logger');
 const axios = require('axios');
 
-const DEFAULT_GATEWAY_FALLBACKS = ['stripe', 'paypal', 'cinetpay', 'mtn_momo', 'orange_money', 'paydunya', 'paygate', 'mycoolpay'];
+const DEFAULT_GATEWAY_FALLBACKS = ['stripe', 'paypal'];
 
 const allowMockGateway = () => (
   process.env.PAYMENT_ALLOW_MOCK === 'true' || process.env.NODE_ENV !== 'production'

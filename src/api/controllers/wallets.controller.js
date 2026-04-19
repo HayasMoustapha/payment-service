@@ -23,6 +23,14 @@ class WalletsController {
       return res.status(201).json(createdResponse('Wallet created', wallet));
     } catch (error) {
       logger.error('Failed to create wallet', { error: error.message });
+
+      if (error?.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'A wallet already exists for this designer.',
+        });
+      }
+
       return res.status(500).json(serverErrorResponse('Failed to create wallet'));
     }
   }
