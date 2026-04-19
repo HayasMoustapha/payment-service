@@ -3,20 +3,70 @@ const path = require('path');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 
+const REQUIRED_TABLES = [
+  'payments',
+  'payment_methods',
+  'payment_gateways',
+  'commissions',
+  'refunds',
+  'wallets',
+  'withdrawals',
+];
+
+const REQUIRED_GATEWAY_CODES = ['stripe', 'paypal', 'orange_money', 'mtn_momo'];
+
 const createConnection = (database) => {
   return new Pool({
     host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT) || 5432,
+    port: parseInt(process.env.DB_PORT, 10) || 5432,
     database,
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
   });
 };
 
 class DatabaseBootstrap {
   constructor() {
     this.migrationsPath = path.join(__dirname, '../database/migrations');
+  }
+
+  async inspectReadiness(client) {
+    const tablesResult = await client.query(
+      `SELECT table_name
+         FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = ANY($1::text[])`,
+      [REQUIRED_TABLES],
+    );
+
+    const presentTables = new Set(tablesResult.rows.map((row) => row.table_name));
+    const missingTables = REQUIRED_TABLES.filter((tableName) => !presentTables.has(tableName));
+
+    let missingGatewayCodes = [...REQUIRED_GATEWAY_CODES];
+
+    if (!missingTables.includes('payment_gateways')) {
+      const gatewayResult = await client.query(
+        `SELECT code
+           FROM payment_gateways
+          WHERE code = ANY($1::text[])`,
+        [REQUIRED_GATEWAY_CODES],
+      );
+
+      const presentGatewayCodes = new Set(
+        gatewayResult.rows.map((row) => String(row.code || '').trim().toLowerCase()),
+      );
+
+      missingGatewayCodes = REQUIRED_GATEWAY_CODES.filter(
+        (code) => !presentGatewayCodes.has(code),
+      );
+    }
+
+    return {
+      missingTables,
+      missingGatewayCodes,
+      ready: missingTables.length === 0 && missingGatewayCodes.length === 0,
+    };
   }
 
   async ensureDatabaseExists() {
@@ -26,15 +76,15 @@ class DatabaseBootstrap {
 
     try {
       const result = await client.query(
-        `SELECT 1 FROM pg_database WHERE datname = $1`,
-        [databaseName]
+        'SELECT 1 FROM pg_database WHERE datname = $1',
+        [databaseName],
       );
 
       if (result.rows.length === 0) {
         await client.query(`CREATE DATABASE "${databaseName}"`);
-        console.log(`✅ Base de données ${databaseName} créée`);
+        console.log(`Payment database created: ${databaseName}`);
       } else {
-        console.log(`ℹ️  Base de données ${databaseName} déjà existante`);
+        console.log(`Payment database already exists: ${databaseName}`);
       }
     } finally {
       client.release();
@@ -43,11 +93,6 @@ class DatabaseBootstrap {
   }
 
   async initialize() {
-    if (process.env.DB_AUTO_BOOTSTRAP !== 'true') {
-      console.log('⚠️  Bootstrap automatique désactivé (DB_AUTO_BOOTSTRAP != true)');
-      return { success: true, message: 'Bootstrap désactivé' };
-    }
-
     await this.ensureDatabaseExists();
 
     const databaseName = process.env.DB_NAME || 'event_planner_payments';
@@ -55,6 +100,24 @@ class DatabaseBootstrap {
     const client = await pool.connect();
 
     try {
+      const autoBootstrapEnabled = process.env.DB_AUTO_BOOTSTRAP === 'true';
+      const readiness = await this.inspectReadiness(client);
+
+      if (!autoBootstrapEnabled && readiness.ready) {
+        console.log('Payment schema already ready; automatic bootstrap remains disabled.');
+        return { success: true, message: 'Bootstrap skipped because schema is already ready.' };
+      }
+
+      if (!autoBootstrapEnabled && !readiness.ready) {
+        console.warn(
+          `DB_AUTO_BOOTSTRAP=false but payment schema is incomplete. Missing tables: ${
+            readiness.missingTables.join(', ') || 'none'
+          }. Missing gateways: ${
+            readiness.missingGatewayCodes.join(', ') || 'none'
+          }. Applying bootstrap to restore service readiness.`,
+        );
+      }
+
       await client.query('BEGIN');
 
       await client.query(`
@@ -70,7 +133,7 @@ class DatabaseBootstrap {
       `);
 
       const files = (await fs.readdir(this.migrationsPath))
-        .filter(file => file.endsWith('.sql'))
+        .filter((file) => file.endsWith('.sql'))
         .sort();
 
       for (const file of files) {
@@ -80,7 +143,7 @@ class DatabaseBootstrap {
 
         const applied = await client.query(
           'SELECT 1 FROM schema_migrations WHERE migration_name = $1',
-          [file]
+          [file],
         );
 
         if (applied.rows.length > 0) {
@@ -90,9 +153,9 @@ class DatabaseBootstrap {
         await client.query(sql);
         await client.query(
           'INSERT INTO schema_migrations (migration_name, checksum, file_size, execution_time_ms) VALUES ($1, $2, $3, $4)',
-          [file, checksum, Buffer.byteLength(sql, 'utf8'), 0]
+          [file, checksum, Buffer.byteLength(sql, 'utf8'), 0],
         );
-        console.log(`✅ Migration appliquée: ${file}`);
+        console.log(`Payment migration applied: ${file}`);
       }
 
       await client.query('COMMIT');

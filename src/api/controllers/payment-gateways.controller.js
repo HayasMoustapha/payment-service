@@ -2,12 +2,36 @@ const paymentGatewayService = require('../../core/gateways/payment-gateway.servi
 const { successResponse, createdResponse, notFoundResponse, serverErrorResponse } = require('../../utils/response');
 const logger = require('../../utils/logger');
 
+const allowMockGateway = () => (
+  process.env.PAYMENT_ALLOW_MOCK === 'true' || process.env.NODE_ENV !== 'production'
+);
+
+const PUBLIC_GATEWAY_CODES = new Set(['stripe', 'paypal']);
+
+if (allowMockGateway()) {
+  PUBLIC_GATEWAY_CODES.add('mock');
+}
+
+function filterPublicGateways(gateways) {
+  return gateways.filter((gateway) =>
+    PUBLIC_GATEWAY_CODES.has(String(gateway?.code ?? '').trim().toLowerCase()),
+  );
+}
+
 class PaymentGatewaysController {
   async list(req, res) {
     try {
       const includeInactive = req.query.includeInactive === 'true';
+      const adminScope = req.query.scope === 'admin' || req.query.includeAll === 'true';
       const gateways = await paymentGatewayService.listGateways({ includeInactive });
-      return res.status(200).json(successResponse('Payment gateways retrieved', gateways));
+      return res
+        .status(200)
+        .json(
+          successResponse(
+            'Payment gateways retrieved',
+            adminScope ? gateways : filterPublicGateways(gateways)
+          )
+        );
     } catch (error) {
       logger.error('Failed to list payment gateways', { error: error.message });
       return res.status(500).json(serverErrorResponse('Failed to list payment gateways'));
