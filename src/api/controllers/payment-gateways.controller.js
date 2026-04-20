@@ -6,7 +6,16 @@ const allowMockGateway = () => (
   process.env.PAYMENT_ALLOW_MOCK === 'true' || process.env.NODE_ENV !== 'production'
 );
 
-const PUBLIC_GATEWAY_CODES = new Set(['stripe', 'paypal']);
+const PUBLIC_GATEWAY_CODES = new Set([
+  'stripe',
+  'paypal',
+  'cinetpay',
+  'paydunya',
+  'paygate',
+  'mtn_momo',
+  'orange_money',
+  'mycoolpay'
+]);
 
 if (allowMockGateway()) {
   PUBLIC_GATEWAY_CODES.add('mock');
