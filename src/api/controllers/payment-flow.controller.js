@@ -166,13 +166,19 @@ class PaymentFlowController {
   }
 
   async initiatePayment(req, res) {
-    try {
-      const resolvedPurchaseId =
-        req.body.metadata?.event_guest_id ||
-        req.body.metadata?.ticket_type_id ||
-        req.body.event_id ||
-        null;
+    const resolvedPurchaseId =
+      req.body.metadata?.event_guest_id ||
+      req.body.metadata?.ticket_type_id ||
+      req.body.event_id ||
+      null;
+    const paymentMetadata = {
+      ...(req.body.metadata || {}),
+      event_id: req.body.event_id,
+      organizer_id: req.body.organizer_id,
+      payment_intent_id: req.body.payment_intent_id
+    };
 
+    try {
       const result = await paymentProcessingService.processPayment({
         userId: req.body.organizer_id || req.body.user_id,
         purchaseId: resolvedPurchaseId,
@@ -184,12 +190,7 @@ class PaymentFlowController {
         returnUrl: req.body.metadata?.return_url,
         cancelUrl: req.body.metadata?.cancel_url,
         useCheckout: req.body.use_checkout === true || req.body.metadata?.use_checkout === true,
-        metadata: {
-          ...(req.body.metadata || {}),
-          event_id: req.body.event_id,
-          organizer_id: req.body.organizer_id,
-          payment_intent_id: req.body.payment_intent_id
-        }
+        metadata: paymentMetadata
       });
 
       return res.status(201).json(createdResponse('Payment initiated', {
@@ -202,13 +203,40 @@ class PaymentFlowController {
       logger.error('Payment initiation failed', { error: error.message });
       if (allowMockGateway()) {
         try {
+          const mockPaymentUrl = req.body.metadata?.return_url || req.body.metadata?.cancel_url || 'http://localhost:3001';
+          const mockTransactionId = `mock_${Date.now()}`;
+          const mockClientSecret = `mock_secret_${Date.now()}`;
+          const existingPayment =
+            resolvedPurchaseId !== null
+              ? await paymentService.getPaymentByPurchaseId(resolvedPurchaseId)
+              : null;
+
+          if (existingPayment?.id && existingPayment.status === 'failed') {
+            const recoveredPayment = await paymentService.updatePayment(existingPayment.id, {
+              status: 'pending',
+              payment_method: 'mock',
+              transaction_id: mockTransactionId,
+              gateway_response: {
+                provider: 'mock',
+                metadata: {
+                  ...paymentMetadata,
+                  payment_id: existingPayment.id,
+                  original_error: error.message
+                }
+              }
+            });
+
+            return res.status(201).json(createdResponse('Payment initiated (mock)', {
+              payment_service_id: recoveredPayment?.id ?? existingPayment.id,
+              payment_url: mockPaymentUrl,
+              client_secret: mockClientSecret,
+              status: recoveredPayment?.status ?? 'pending'
+            }));
+          }
+
           const fallback = await paymentProcessingService.processPayment({
             userId: req.body.organizer_id || req.body.user_id,
-            purchaseId:
-              req.body.metadata?.event_guest_id ||
-              req.body.metadata?.ticket_type_id ||
-              req.body.event_id ||
-              null,
+            purchaseId: resolvedPurchaseId,
             amount: req.body.amount,
             currency: req.body.currency,
             paymentMethod: 'mock',
@@ -218,12 +246,7 @@ class PaymentFlowController {
             cancelUrl: req.body.metadata?.cancel_url,
             useCheckout: req.body.use_checkout === true || req.body.metadata?.use_checkout === true,
             preferredGateways: ['mock'],
-            metadata: {
-              ...(req.body.metadata || {}),
-              event_id: req.body.event_id,
-              organizer_id: req.body.organizer_id,
-              payment_intent_id: req.body.payment_intent_id
-            }
+            metadata: paymentMetadata
           });
           return res.status(201).json(createdResponse('Payment initiated (mock)', {
             payment_service_id: fallback.payment.id,

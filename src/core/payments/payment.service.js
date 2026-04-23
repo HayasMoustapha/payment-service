@@ -41,6 +41,11 @@ class PaymentService {
     return result.rows[0] || null;
   }
 
+  async getPaymentByPurchaseId(purchaseId) {
+    const result = await query('SELECT * FROM payments WHERE purchase_id = $1', [purchaseId]);
+    return result.rows[0] || null;
+  }
+
   async listPayments({ user_id, status, gateway_id, limit = 50, offset = 0 } = {}) {
     const clauses = [];
     const values = [];
