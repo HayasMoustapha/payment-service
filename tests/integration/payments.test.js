@@ -8,6 +8,31 @@ describe('Payments API Integration Tests', () => {
   let testRefundId = 're_test123';
   let testInvoiceId = 'inv_test123';
 
+  const withTemporaryEnv = async (overrides, callback) => {
+    const previousValues = {};
+
+    Object.entries(overrides).forEach(([key, value]) => {
+      previousValues[key] = process.env[key];
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    });
+
+    try {
+      await callback();
+    } finally {
+      Object.entries(previousValues).forEach(([key, value]) => {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      });
+    }
+  };
+
   beforeAll(async () => {
     // Attendre l'initialisation du serveur
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -68,6 +93,7 @@ describe('Payments API Integration Tests', () => {
 
       expect(response.body).toHaveProperty('success');
       expect(response.body).toHaveProperty('healthy');
+      expect(response.body).toHaveProperty('configured', true);
     });
 
     it('should return component health for invoice', async () => {
@@ -97,6 +123,17 @@ describe('Payments API Integration Tests', () => {
       expect(response.body).toHaveProperty('providers');
       expect(response.body.providers).toHaveProperty('stripe');
       expect(response.body.providers).toHaveProperty('paypal');
+      expect(response.body.providers.stripe).toMatchObject({
+        configured: true,
+        healthy: true,
+        healthSource: 'configuration'
+      });
+      expect(response.body.providers.paypal).toMatchObject({
+        configured: true,
+        healthy: true,
+        healthSource: 'configuration'
+      });
+      expect(response.body).toHaveProperty('overall');
     });
 
     it('should return config', async () => {
@@ -107,8 +144,61 @@ describe('Payments API Integration Tests', () => {
       expect(response.body).toHaveProperty('success');
       expect(response.body).toHaveProperty('config');
       expect(response.body.config).toHaveProperty('currency');
-      expect(response.body.config).toHaveProperty('stripe');
-      expect(response.body.config).toHaveProperty('paypal');
+      expect(response.body.config).toHaveProperty('stripe', true);
+      expect(response.body.config).toHaveProperty('paypal', true);
+      expect(response.body.config).toHaveProperty('providers');
+    });
+
+    it('should report placeholder provider credentials as not configured', async () => {
+      await withTemporaryEnv({
+        STRIPE_SECRET_KEY: 'sk_test_your_stripe_secret_key',
+        PAYPAL_CLIENT_ID: 'your_paypal_client_id',
+        PAYPAL_CLIENT_SECRET: 'your_paypal_client_secret'
+      }, async () => {
+        const providersResponse = await request(app)
+          .get('/health/providers')
+          .expect(200);
+
+        expect(providersResponse.body.providers.stripe).toMatchObject({
+          configured: false,
+          healthy: false
+        });
+        expect(providersResponse.body.providers.stripe.placeholderConfig).toContain('STRIPE_SECRET_KEY');
+        expect(providersResponse.body.providers.paypal).toMatchObject({
+          configured: false,
+          healthy: false
+        });
+        expect(providersResponse.body.providers.paypal.placeholderConfig).toEqual(
+          expect.arrayContaining(['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'])
+        );
+        expect(providersResponse.body.overall.anyRealProviderConfigured).toBe(false);
+
+        const configResponse = await request(app)
+          .get('/health/config')
+          .expect(200);
+
+        expect(configResponse.body.config.stripe).toBe(false);
+        expect(configResponse.body.config.paypal).toBe(false);
+        expect(configResponse.body.config.anyRealProviderConfigured).toBe(false);
+      });
+    });
+
+    it('should return degraded component health when provider config is placeholder', async () => {
+      await withTemporaryEnv({
+        STRIPE_SECRET_KEY: 'sk_test_your_stripe_secret_key'
+      }, async () => {
+        const response = await request(app)
+          .get('/health/components/stripe')
+          .expect(503);
+
+        expect(response.body).toMatchObject({
+          success: true,
+          healthy: false,
+          configured: false,
+          provider: 'stripe'
+        });
+        expect(response.body.placeholderConfig).toContain('STRIPE_SECRET_KEY');
+      });
     });
 
     it('should handle invalid component', async () => {

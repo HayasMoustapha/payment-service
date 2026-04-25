@@ -36,8 +36,9 @@ GET /health/ready
   "status": "ready",
   "checks": {
     "database": "healthy",
-    "stripe": "healthy",
-    "paypal": "healthy"
+    "schema": "healthy",
+    "missingTables": [],
+    "missingGatewayCodes": []
   }
 }
 ```
@@ -60,14 +61,18 @@ GET /health/live
 ```
 GET /health/components/stripe
 ```
-- **Description**: Vérifier la connexion avec Stripe
+- **Description**: Vérifier la readiness de configuration Stripe
 - **Authentification**: Non requise
 - **Response**:
 ```json
 {
-  "status": "healthy",
+  "success": true,
+  "healthy": false,
+  "configured": false,
+  "healthSource": "configuration",
   "provider": "stripe",
-  "last_check": "2024-01-25T10:00:00.000Z"
+  "missingConfig": [],
+  "placeholderConfig": ["STRIPE_SECRET_KEY"]
 }
 ```
 
@@ -75,14 +80,89 @@ GET /health/components/stripe
 ```
 GET /health/components/paypal
 ```
-- **Description**: Vérifier la connexion avec PayPal
+- **Description**: Vérifier la readiness de configuration PayPal
 - **Authentification**: Non requise
 - **Response**:
 ```json
 {
-  "status": "healthy",
+  "success": true,
+  "healthy": true,
+  "configured": true,
+  "healthSource": "configuration",
   "provider": "paypal",
-  "last_check": "2024-01-25T10:00:00.000Z"
+  "missingConfig": [],
+  "placeholderConfig": []
+}
+```
+
+### Providers Health
+```
+GET /health/providers
+```
+- **Description**: Retourner l'état de configuration réel des providers, sans compter les placeholders comme des credentials valides
+- **Authentification**: Non requise
+- **Response**:
+```json
+{
+  "success": true,
+  "providers": {
+    "stripe": {
+      "provider": "stripe",
+      "type": "real",
+      "configured": false,
+      "healthy": false,
+      "healthSource": "configuration",
+      "requiredConfig": ["STRIPE_SECRET_KEY"],
+      "presentConfig": [],
+      "missingConfig": [],
+      "placeholderConfig": ["STRIPE_SECRET_KEY"]
+    },
+    "mock": {
+      "provider": "mock",
+      "type": "mock",
+      "configured": true,
+      "healthy": true,
+      "healthSource": "mock-provider",
+      "presentConfig": [],
+      "missingConfig": [],
+      "placeholderConfig": []
+    }
+  },
+  "overall": {
+    "anyRealProviderConfigured": false,
+    "anyRealProviderHealthy": false,
+    "mockAvailable": true
+  }
+}
+```
+
+### Service Config
+```
+GET /health/config
+```
+- **Description**: Résumer la configuration réellement exploitable du service de paiement
+- **Authentification**: Non requise
+- **Response**:
+```json
+{
+  "success": true,
+  "config": {
+    "currency": "EUR",
+    "stripe": false,
+    "paypal": true,
+    "anyRealProviderConfigured": true,
+    "mock": true,
+    "providers": {
+      "stripe": {
+        "configured": false,
+        "placeholderConfig": ["STRIPE_SECRET_KEY"]
+      },
+      "paypal": {
+        "configured": true,
+        "placeholderConfig": []
+      }
+    }
+  }
 }
 ```
 

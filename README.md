@@ -651,6 +651,10 @@ curl http://localhost:3003/health/detailed
 curl http://localhost:3003/health/providers
 ```
 
+Note:
+- `/health/providers`, `/health/config` et `/health/components/:provider` évaluent maintenant la configuration réellement exploitable.
+- Une valeur placeholder comme `your_paypal_client_id` ou `sk_test_your_stripe_secret_key` n'est plus comptée comme provider configuré.
+
 ## 🧪 Tests
 
 ### Tests Unitaires

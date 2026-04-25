@@ -9,6 +9,8 @@ process.env.DB_NAME = 'event_planner_payments_test';
 process.env.JWT_SECRET = 'test-jwt-secret';
 process.env.STRIPE_SECRET_KEY = 'sk_test_123456789';
 process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_123456789';
+process.env.PAYPAL_CLIENT_ID = 'paypal-client-id-test';
+process.env.PAYPAL_CLIENT_SECRET = 'paypal-client-secret-test';
 
 // Mock console methods to reduce noise in tests
 global.console = {
