@@ -203,37 +203,6 @@ class PaymentFlowController {
       logger.error('Payment initiation failed', { error: error.message });
       if (allowMockGateway()) {
         try {
-          const mockPaymentUrl = req.body.metadata?.return_url || req.body.metadata?.cancel_url || 'http://localhost:3001';
-          const mockTransactionId = `mock_${Date.now()}`;
-          const mockClientSecret = `mock_secret_${Date.now()}`;
-          const existingPayment =
-            resolvedPurchaseId !== null
-              ? await paymentService.getPaymentByPurchaseId(resolvedPurchaseId)
-              : null;
-
-          if (existingPayment?.id && existingPayment.status === 'failed') {
-            const recoveredPayment = await paymentService.updatePayment(existingPayment.id, {
-              status: 'pending',
-              payment_method: 'mock',
-              transaction_id: mockTransactionId,
-              gateway_response: {
-                provider: 'mock',
-                metadata: {
-                  ...paymentMetadata,
-                  payment_id: existingPayment.id,
-                  original_error: error.message
-                }
-              }
-            });
-
-            return res.status(201).json(createdResponse('Payment initiated (mock)', {
-              payment_service_id: recoveredPayment?.id ?? existingPayment.id,
-              payment_url: mockPaymentUrl,
-              client_secret: mockClientSecret,
-              status: recoveredPayment?.status ?? 'pending'
-            }));
-          }
-
           const fallback = await paymentProcessingService.processPayment({
             userId: req.body.organizer_id || req.body.user_id,
             purchaseId: resolvedPurchaseId,
