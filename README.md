@@ -218,6 +218,14 @@ services:
 
 ### Notifications
 - **Webhooks vers core** : Changements de statut
+
+## Runtime Notes - Designer Payouts
+
+- Marketplace template revenue is credited to designers only when the payment-service marks the payment `completed` with `payment_type=template_purchase`.
+- The service now records the platform commission, computes the net designer amount, and writes an immutable `wallet_transactions` ledger entry before updating wallet balances.
+- Wallets expose `balance`, `available_balance`, and `reserved_balance`.
+- Withdrawal requests reserve funds first, then either complete as a real debit or release the reservation back to the available balance.
+- The designer payout read-model is available through `GET /api/wallets/designer/:designerId/summary`.
 - **Events Redis** : Notifications temps réel
 - **Logs centralisés** : Partage des logs
 

@@ -2,7 +2,9 @@ const paymentService = require('./payment.service');
 const commissionService = require('../commissions/commission.service');
 const gatewayManager = require('../gateways/gateway-manager.service');
 const paymentGatewayService = require('../gateways/payment-gateway.service');
+const walletService = require('../wallets/wallet.service');
 const logger = require('../../utils/logger');
+const { normalizeStoredPaymentAmount, roundMoney } = require('../../utils/money');
 const axios = require('axios');
 
 const DEFAULT_GATEWAY_FALLBACKS = ['stripe', 'paypal'];
@@ -12,6 +14,154 @@ const allowMockGateway = () => (
 );
 
 class PaymentProcessingService {
+  parseGatewayResponse(value) {
+    if (!value) {
+      return null;
+    }
+
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return null;
+      }
+    }
+
+    if (typeof value === 'object') {
+      return value;
+    }
+
+    return null;
+  }
+
+  extractPaymentMetadata(payment) {
+    const gatewayResponse = this.parseGatewayResponse(payment?.gateway_response);
+    if (
+      gatewayResponse &&
+      typeof gatewayResponse.metadata === 'object' &&
+      gatewayResponse.metadata !== null
+    ) {
+      return gatewayResponse.metadata;
+    }
+
+    return {};
+  }
+
+  async finalizeDesignerTemplateRevenue(payment) {
+    const metadata = this.extractPaymentMetadata(payment);
+    if (String(metadata.payment_type || '').trim().toLowerCase() !== 'template_purchase') {
+      return null;
+    }
+
+    const designerId = Number(metadata.designer_id);
+    if (!Number.isFinite(designerId) || designerId <= 0) {
+      return null;
+    }
+
+    const templateId = metadata.template_id ?? null;
+    const grossAmount = normalizeStoredPaymentAmount(payment.amount, payment.currency);
+    const commissionRate = Number(process.env.TEMPLATE_COMMISSION_RATE || 0);
+    const commissionAmount = roundMoney(grossAmount * (Number.isFinite(commissionRate) ? commissionRate : 0));
+    const netAmount = roundMoney(grossAmount - commissionAmount);
+
+    if (netAmount < 0) {
+      const error = new Error(`Computed net amount is negative for payment ${payment.id}`);
+      error.code = 'INVALID_TEMPLATE_NET_AMOUNT';
+      throw error;
+    }
+
+    return walletService.inTransaction(async (client) => {
+      let commission = await commissionService.getCommissionByPayment(payment.id, client);
+      if (!commission && commissionRate > 0) {
+        commission = await commissionService.createCommission(
+          {
+            payment_id: payment.id,
+            rate: commissionRate,
+            amount: commissionAmount,
+            type: 'template_sale',
+          },
+          client
+        );
+      }
+
+      const credited = await walletService.creditDesignerSale(
+        designerId,
+        {
+          amount: netAmount,
+          currency: payment.currency,
+          paymentId: payment.id,
+          templateId,
+          grossAmount,
+          commissionAmount: commission?.amount ?? commissionAmount,
+          description: 'Marketplace template sale credited to designer wallet',
+          metadata,
+        },
+        client
+      );
+
+      return {
+        commission,
+        credited,
+        grossAmount,
+        netAmount,
+      };
+    });
+  }
+
+  async applyPaymentStateTransition(
+    payment,
+    {
+      nextStatus,
+      transactionId = null,
+      gatewayResponse = null,
+      providerCode = null,
+      notifyCore = true,
+    }
+  ) {
+    const normalizedNextStatus = typeof nextStatus === 'string' ? nextStatus.trim().toLowerCase() : '';
+    if (!normalizedNextStatus) {
+      return payment;
+    }
+
+    const updatedPayment = await paymentService.updatePayment(payment.id, {
+      status: normalizedNextStatus,
+      transaction_id: transactionId || payment.transaction_id,
+      gateway_response: gatewayResponse || payment.gateway_response,
+    }) || payment;
+
+    if (normalizedNextStatus === 'completed') {
+      try {
+        await this.finalizeDesignerTemplateRevenue(updatedPayment);
+      } catch (error) {
+        logger.error('Failed to finalize designer template revenue', {
+          paymentId: updatedPayment.id,
+          error: error.message,
+        });
+        throw error;
+      }
+    }
+
+    if (notifyCore && ['completed', 'failed', 'refunded'].includes(normalizedNextStatus)) {
+      const metadata = this.extractPaymentMetadata(updatedPayment);
+      await this.notifyCoreService({
+        paymentIntentId:
+          metadata.payment_intent_id ||
+          updatedPayment.transaction_id ||
+          transactionId,
+        status: normalizedNextStatus,
+        provider: providerCode || updatedPayment.payment_method,
+        data: {
+          payment_service_id: updatedPayment.id,
+          template_id: metadata.template_id,
+          event_id: metadata.event_id,
+          metadata,
+        }
+      });
+    }
+
+    return updatedPayment;
+  }
+
   async ensureMockGateway() {
     const existingMockGateway = await paymentGatewayService.getGatewayByCode('mock');
     if (existingMockGateway?.is_active) {
@@ -150,11 +300,21 @@ class PaymentProcessingService {
       }
     };
 
-    const updatedPayment = await paymentService.updatePayment(paymentRecord.id, {
+    let updatedPayment = await paymentService.updatePayment(paymentRecord.id, {
       transaction_id: gatewayResult.transactionId || null,
       gateway_response: gatewayResponse,
       status: gatewayResult.status || 'pending'
     });
+
+    if (updatedPayment && ['completed', 'failed', 'refunded'].includes(String(updatedPayment.status || '').trim().toLowerCase())) {
+      updatedPayment = await this.applyPaymentStateTransition(updatedPayment, {
+        nextStatus: updatedPayment.status,
+        transactionId: updatedPayment.transaction_id,
+        gatewayResponse,
+        providerCode: gateway.code,
+        notifyCore: true,
+      });
+    }
 
     return {
       payment: updatedPayment,
@@ -195,21 +355,6 @@ class PaymentProcessingService {
         payment_type: 'template_purchase'
       }
     });
-
-    const commissionRate = Number(process.env.TEMPLATE_COMMISSION_RATE || 0);
-    if (commissionRate > 0) {
-      try {
-        await commissionService.createCommission({
-          payment_id: result.payment.id,
-          rate: commissionRate,
-          amount: Number(amount) * commissionRate,
-          type: 'template_sale'
-        });
-      } catch (error) {
-        logger.error('Failed to create commission', { error: error.message });
-      }
-    }
-
     return result;
   }
 
@@ -237,31 +382,16 @@ class PaymentProcessingService {
         if (providerStatus?.status) {
           const gatewayResponse = {
             provider: providerStatus.raw || payment.gateway_response?.provider || payment.gateway_response || null,
-            metadata: payment.gateway_response?.metadata || {}
+            metadata: this.extractPaymentMetadata(payment)
           };
 
-          payment = await paymentService.updatePayment(payment.id, {
-            status: providerStatus.status,
-            transaction_id: providerStatus.transactionId || payment.transaction_id,
-            gateway_response: gatewayResponse
-          }) || payment;
-
-          if (['completed', 'failed', 'refunded'].includes(providerStatus.status)) {
-            await this.notifyCoreService({
-              paymentIntentId:
-                payment.gateway_response?.metadata?.payment_intent_id ||
-                payment.transaction_id ||
-                providerStatus.transactionId,
-              status: providerStatus.status,
-              provider: payment.payment_method,
-              data: {
-                payment_service_id: payment.id,
-                template_id: payment.gateway_response?.metadata?.template_id,
-                event_id: payment.gateway_response?.metadata?.event_id,
-                metadata: payment.gateway_response?.metadata || {}
-              }
-            });
-          }
+          payment = await this.applyPaymentStateTransition(payment, {
+            nextStatus: providerStatus.status,
+            transactionId: providerStatus.transactionId || payment.transaction_id,
+            gatewayResponse,
+            providerCode: payment.payment_method,
+            notifyCore: true,
+          });
         }
       } catch (error) {
         logger.warn('Provider payment status synchronization failed', {
@@ -286,7 +416,11 @@ class PaymentProcessingService {
       await gatewayManager.cancelPayment(payment.payment_method, payment.transaction_id);
     }
 
-    return paymentService.updatePaymentStatus(payment.id, 'failed');
+    return this.applyPaymentStateTransition(payment, {
+      nextStatus: 'failed',
+      providerCode: payment.payment_method,
+      notifyCore: true,
+    });
   }
 
   async processWebhook(providerCode, { rawBody, signature, headers, body }) {
@@ -311,27 +445,31 @@ class PaymentProcessingService {
 
     const gatewayResponse = {
       provider: parsed.raw || payment.gateway_response?.provider || payment.gateway_response || null,
-      metadata: payment.gateway_response?.metadata || {}
+      metadata: this.extractPaymentMetadata(payment)
     };
 
-    const updated = await paymentService.updatePayment(payment.id, {
-      status: parsed.status || 'pending',
-      transaction_id: payment.transaction_id || parsed.transactionId,
-      gateway_response: gatewayResponse
-    });
-
-    await this.notifyCoreService({
-      paymentIntentId: payment.gateway_response?.metadata?.payment_intent_id || payment.transaction_id || parsed.transactionId,
-      status: parsed.status,
-      provider: providerCode,
-      data: {
-        payment_service_id: payment.id,
-        template_id: payment.gateway_response?.metadata?.template_id,
-        event_id: payment.gateway_response?.metadata?.event_id
-      }
+    const updated = await this.applyPaymentStateTransition(payment, {
+      nextStatus: parsed.status || 'pending',
+      transactionId: payment.transaction_id || parsed.transactionId,
+      gatewayResponse,
+      providerCode,
+      notifyCore: true,
     });
 
     return { success: true, payment: updated };
+  }
+
+  async updatePaymentStatus(paymentId, status) {
+    const payment = await paymentService.getPayment(paymentId);
+    if (!payment) {
+      return null;
+    }
+
+    return this.applyPaymentStateTransition(payment, {
+      nextStatus: status,
+      providerCode: payment.payment_method,
+      notifyCore: true,
+    });
   }
 
   async notifyCoreService({ paymentIntentId, status, provider, data }) {

@@ -1,4 +1,5 @@
 const paymentService = require('../../core/payments/payment.service');
+const paymentProcessingService = require('../../core/payments/payment-processing.service');
 const { successResponse, createdResponse, notFoundResponse, serverErrorResponse } = require('../../utils/response');
 const logger = require('../../utils/logger');
 
@@ -45,7 +46,10 @@ class PaymentsController {
 
   async updateStatus(req, res) {
     try {
-      const payment = await paymentService.updatePaymentStatus(req.params.paymentId, req.body.status);
+      const payment = await paymentProcessingService.updatePaymentStatus(
+        req.params.paymentId,
+        req.body.status
+      );
       if (!payment) {
         return res.status(404).json(notFoundResponse('Payment', req.params.paymentId));
       }

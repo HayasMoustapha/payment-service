@@ -3,6 +3,38 @@ const { successResponse, createdResponse, notFoundResponse, serverErrorResponse 
 const logger = require('../../utils/logger');
 
 class WithdrawalsController {
+  mapDomainError(error, fallbackMessage) {
+    const message = error?.message || fallbackMessage;
+
+    if (
+      error?.code === 'INVALID_WITHDRAWAL_AMOUNT' ||
+      error?.code === 'INSUFFICIENT_AVAILABLE_BALANCE' ||
+      error?.code === 'INVALID_WITHDRAWAL_STATUS_TRANSITION' ||
+      error?.code === 'WITHDRAWAL_AMOUNT_IMMUTABLE'
+    ) {
+      return {
+        status: 400,
+        body: { success: false, error: message },
+      };
+    }
+
+    if (error?.code === 'WITHDRAWAL_TERMINAL_STATE') {
+      return {
+        status: 409,
+        body: { success: false, error: message },
+      };
+    }
+
+    if (error?.code === 'WALLET_NOT_FOUND') {
+      return {
+        status: 404,
+        body: { success: false, error: message },
+      };
+    }
+
+    return null;
+  }
+
   async list(req, res) {
     try {
       const { wallet_id, status, limit, offset } = req.query;
@@ -38,6 +70,10 @@ class WithdrawalsController {
       return res.status(201).json(createdResponse('Withdrawal created', withdrawal));
     } catch (error) {
       logger.error('Failed to create withdrawal', { error: error.message });
+      const mapped = this.mapDomainError(error, 'Failed to create withdrawal');
+      if (mapped) {
+        return res.status(mapped.status).json(mapped.body);
+      }
       return res.status(500).json(serverErrorResponse('Failed to create withdrawal'));
     }
   }
@@ -55,6 +91,10 @@ class WithdrawalsController {
       return res.status(200).json(successResponse('Withdrawal status updated', withdrawal));
     } catch (error) {
       logger.error('Failed to update withdrawal status', { error: error.message });
+      const mapped = this.mapDomainError(error, 'Failed to update withdrawal status');
+      if (mapped) {
+        return res.status(mapped.status).json(mapped.body);
+      }
       return res.status(500).json(serverErrorResponse('Failed to update withdrawal status'));
     }
   }
@@ -68,6 +108,10 @@ class WithdrawalsController {
       return res.status(200).json(successResponse('Withdrawal updated', withdrawal));
     } catch (error) {
       logger.error('Failed to update withdrawal', { error: error.message });
+      const mapped = this.mapDomainError(error, 'Failed to update withdrawal');
+      if (mapped) {
+        return res.status(mapped.status).json(mapped.body);
+      }
       return res.status(500).json(serverErrorResponse('Failed to update withdrawal'));
     }
   }
@@ -81,6 +125,10 @@ class WithdrawalsController {
       return res.status(200).json(successResponse('Withdrawal deleted', withdrawal));
     } catch (error) {
       logger.error('Failed to delete withdrawal', { error: error.message });
+      const mapped = this.mapDomainError(error, 'Failed to delete withdrawal');
+      if (mapped) {
+        return res.status(mapped.status).json(mapped.body);
+      }
       return res.status(500).json(serverErrorResponse('Failed to delete withdrawal'));
     }
   }

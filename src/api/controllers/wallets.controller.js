@@ -61,6 +61,39 @@ class WalletsController {
     }
   }
 
+  async getDesignerSummary(req, res) {
+    try {
+      const summary = await walletService.getDesignerPayoutSummary(
+        Number(req.params.designerId),
+        {
+          limit: req.query.limit ? Number(req.query.limit) : 10,
+        }
+      );
+      return res.status(200).json(successResponse('Designer payout summary retrieved', summary));
+    } catch (error) {
+      logger.error('Failed to get designer payout summary', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to get designer payout summary'));
+    }
+  }
+
+  async listTransactions(req, res) {
+    try {
+      const transactions = await walletService.listWalletTransactions(
+        Number(req.params.walletId),
+        {
+          limit: req.query.limit ? Number(req.query.limit) : 20,
+          offset: req.query.offset ? Number(req.query.offset) : 0,
+          entryType: req.query.entry_type,
+        }
+      );
+
+      return res.status(200).json(successResponse('Wallet transactions retrieved', transactions));
+    } catch (error) {
+      logger.error('Failed to list wallet transactions', { error: error.message });
+      return res.status(500).json(serverErrorResponse('Failed to list wallet transactions'));
+    }
+  }
+
   async update(req, res) {
     try {
       const wallet = await walletService.updateWallet(req.params.walletId, req.body);
